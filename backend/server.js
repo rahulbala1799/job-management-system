@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const db = require('./db');
+const fs = require('fs');
 
 const app = express();
 
@@ -119,16 +120,37 @@ try {
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
-  // First try the frontend/build directory (pre-built)
+  // First check if frontend/build directory exists
   const frontendBuildPath = path.join(__dirname, '../frontend/build');
-  app.use(express.static(frontendBuildPath));
   
-  // For any request that doesn't match an API route, serve the React app
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(frontendBuildPath, 'index.html'));
-  });
-  
-  console.log('Running in production mode - serving static files from', frontendBuildPath);
+  try {
+    if (fs.existsSync(frontendBuildPath) && fs.existsSync(path.join(frontendBuildPath, 'index.html'))) {
+      // Directory and index.html exist, serve static files
+      app.use(express.static(frontendBuildPath));
+      
+      // For any request that doesn't match an API route, serve the React app
+      app.get('*', (req, res) => {
+        res.sendFile(path.join(frontendBuildPath, 'index.html'));
+      });
+      
+      console.log('Running in production mode - serving static files from', frontendBuildPath);
+    } else {
+      // Frontend build doesn't exist, just serve API
+      console.log('Frontend build not found at', frontendBuildPath);
+      console.log('Running in API-only mode');
+      
+      // Provide a simple response for the root path
+      app.get('/', (req, res) => {
+        res.send('Job Management API is running - Frontend not available');
+      });
+    }
+  } catch (error) {
+    console.error('Error checking frontend build:', error);
+    // Fallback to API-only mode
+    app.get('/', (req, res) => {
+      res.send('Job Management API is running - Error checking frontend');
+    });
+  }
 } else {
   // Basic route for development
   app.get('/', (req, res) => {
