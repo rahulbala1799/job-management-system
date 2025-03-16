@@ -61,6 +61,11 @@ app.use('/api/job-costing', jobCostingRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/finished-products', finishedProductRoutes);
 
+// Health check endpoint for Railway
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', message: 'Server is running' });
+});
+
 // Test DB connection
 (async () => {
   try {
