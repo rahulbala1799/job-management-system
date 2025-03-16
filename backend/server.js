@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2');
 const path = require('path');
+const db = require('./db');
 
 // Create MySQL connection pool
 const pool = mysql.createPool({
@@ -60,17 +61,28 @@ app.use('/api/job-costing', jobCostingRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/finished-products', finishedProductRoutes);
 
+// Test DB connection
+(async () => {
+  try {
+    await db.query('SELECT 1');
+    console.log('Successfully connected to MySQL database');
+  } catch (err) {
+    console.error('Error connecting to MySQL:', err);
+  }
+})();
+
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
-  // Set the build folder as static
-  app.use(express.static(path.join(__dirname, '../frontend/build')));
+  // First try the frontend/build directory (pre-built)
+  const frontendBuildPath = path.join(__dirname, '../frontend/build');
+  app.use(express.static(frontendBuildPath));
   
   // For any request that doesn't match an API route, serve the React app
   app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
+    res.sendFile(path.join(frontendBuildPath, 'index.html'));
   });
   
-  console.log('Running in production mode - serving static files');
+  console.log('Running in production mode - serving static files from', frontendBuildPath);
 } else {
   // Basic route for development
   app.get('/', (req, res) => {

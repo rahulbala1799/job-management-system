@@ -8,14 +8,12 @@
   "main": "backend/server.js",
   "scripts": {
     "start": "cd backend && node server.js",
-    "build": "cd frontend && npm install && npm run build",
+    "build": "echo 'No build needed - using prebuilt frontend'",
     "install-backend": "cd backend && npm install",
-    "install-frontend": "cd frontend && npm install",
     "postinstall": "npm run install-backend",
     "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm start\""
   },
   "cacheDirectories": [
-    "frontend/node_modules",
     "backend/node_modules"
   ],
   "dependencies": {
