@@ -13,4 +13,13 @@ restartPolicyMaxRetries = 5
 nixPkgs = ["nodejs", "npm"]
 
 [phases.install]
-cmds = ["npm install"] 
+cmds = ["npm install"]
+
+[start]
+cmd = "npm run init-db && npm start"
+
+[healthchecks]
+path = "/health"
+interval = "10s"
+timeout = "5s"
+grace_period = "20s" 
