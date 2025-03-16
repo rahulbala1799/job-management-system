@@ -6,30 +6,25 @@ console.log('==========================================');
 console.log('RAILWAY DATABASE CONNECTION DIAGNOSTICS');
 console.log('==========================================');
 
-console.log('All environment variables:');
-console.log(Object.keys(process.env).filter(key => 
-  !key.includes('KEY') && !key.includes('SECRET') && !key.includes('PASSWORD') && 
-  !key.includes('TOKEN') && !key.includes('AUTH')
-).map(key => `${key}: ${process.env[key]}`));
+// Log all non-sensitive environment variables
+console.log('Environment variables:');
+Object.keys(process.env)
+  .filter(key => !key.includes('KEY') && !key.includes('SECRET') && !key.includes('PASSWORD') && !key.includes('TOKEN'))
+  .forEach(key => console.log(`${key}: ${process.env[key] || 'undefined'}`));
 
-console.log('Critical database variables:');
-console.log('MYSQLDATABASE:', process.env.MYSQLDATABASE);
-console.log('MYSQLHOST:', process.env.MYSQLHOST);
-console.log('MYSQLUSER:', process.env.MYSQLUSER);
-console.log('MYSQL_URL:', process.env.MYSQL_URL);
-console.log('MYSQL_DATABASE:', process.env.MYSQL_DATABASE);
+// Try to get database connection info from MYSQL_URL first (Railway format)
+let connectionConfig = null;
 
-// If MYSQL_URL is available, extract connection details
-let mysqlConfig = {};
+// Option 1: Try MYSQL_URL (Railway format)
 if (process.env.MYSQL_URL) {
+  console.log('Found MYSQL_URL, trying to parse it');
   try {
-    console.log('Attempting to parse MYSQL_URL');
     const url = new URL(process.env.MYSQL_URL);
-    mysqlConfig = {
+    connectionConfig = {
       host: url.hostname,
       user: url.username,
       password: url.password,
-      database: url.pathname.substring(1),
+      database: url.pathname.substring(1) || 'railway',
       port: url.port || 3306
     };
     console.log('Successfully parsed MYSQL_URL');
@@ -38,12 +33,63 @@ if (process.env.MYSQL_URL) {
   }
 }
 
-// Final database configuration
+// Option 2: Try MYSQL_PUBLIC_URL (Railway public format, if available)
+if (!connectionConfig && process.env.MYSQL_PUBLIC_URL) {
+  console.log('Found MYSQL_PUBLIC_URL, trying to parse it');
+  try {
+    const url = new URL(process.env.MYSQL_PUBLIC_URL);
+    connectionConfig = {
+      host: url.hostname, 
+      user: process.env.MYSQLUSER || 'root',
+      password: process.env.MYSQLPASSWORD || '',
+      database: process.env.MYSQLDATABASE || 'railway',
+      port: url.port || 3306
+    };
+    console.log('Successfully parsed MYSQL_PUBLIC_URL');
+  } catch (error) {
+    console.error('Failed to parse MYSQL_PUBLIC_URL:', error.message);
+  }
+}
+
+// Option 3: Use individual env vars (MYSQLHOST, etc.)
+if (!connectionConfig && process.env.MYSQLHOST) {
+  console.log('Using individual MYSQL* environment variables');
+  connectionConfig = {
+    host: process.env.MYSQLHOST,
+    user: process.env.MYSQLUSER || 'root',
+    password: process.env.MYSQLPASSWORD || '',
+    database: process.env.MYSQLDATABASE || 'railway',
+    port: process.env.MYSQLPORT || 3306
+  };
+}
+
+// Option 4: Fallback to legacy DB_* variables
+if (!connectionConfig && process.env.DB_HOST) {
+  console.log('Using legacy DB_* environment variables');
+  connectionConfig = {
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'job_management',
+    port: process.env.DB_PORT || 3306
+  };
+}
+
+// Option 5: Last resort - localhost
+if (!connectionConfig) {
+  console.log('No DB configuration found, using localhost defaults');
+  connectionConfig = {
+    host: 'localhost',
+    user: 'root',
+    password: '',
+    database: 'railway',
+    port: 3306
+  };
+}
+
+// Pool configuration
 const config = {
-  host: mysqlConfig.host || process.env.MYSQLHOST || process.env.DB_HOST || 'localhost',
-  user: mysqlConfig.user || process.env.MYSQLUSER || process.env.DB_USER || 'root',
-  password: mysqlConfig.password || process.env.MYSQLPASSWORD || process.env.DB_PASSWORD || '',
-  database: mysqlConfig.database || process.env.MYSQLDATABASE || process.env.MYSQL_DATABASE || process.env.DB_NAME || 'railway',
+  ...connectionConfig,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0
@@ -53,6 +99,7 @@ console.log('Using database connection config:');
 console.log('Host:', config.host);
 console.log('User:', config.user);
 console.log('Database:', config.database);
+console.log('Port:', config.port);
 console.log('==========================================');
 
 // Create a pool

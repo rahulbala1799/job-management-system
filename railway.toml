@@ -14,8 +14,7 @@ nixPkgs = ["nodejs_20"]
 [phases.install]
 cmds = ["npm install && cd backend && npm install"]
 
-[start]
-cmd = "npm run init-db && npm start"
+# No start section - let Railway use the script from package.json
 
 [healthchecks]
 path = "/health"
