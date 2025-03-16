@@ -1,0 +1,21 @@
+{
+  "name": "job-management-system",
+  "version": "1.0.0",
+  "description": "Job Management System for printing businesses",
+  "engines": {
+    "node": "18.x"
+  },
+  "scripts": {
+    "start": "cd backend && NODE_ENV=production node server.js",
+    "build": "cd frontend && npm install && npm run build",
+    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm start\""
+  },
+  "cacheDirectories": [
+    "frontend/node_modules",
+    "backend/node_modules"
+  ],
+  "dependencies": {
+    "concurrently": "^8.0.1"
+  }
+}
