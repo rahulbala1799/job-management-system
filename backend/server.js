@@ -28,25 +28,75 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Import routes
-const userRoutes = require('./routes/userRoutes');
-const productRoutes = require('./routes/productRoutes');
-const jobRoutes = require('./routes/jobRoutes');
-const customerRoutes = require('./routes/customerRoutes');
-const invoiceRoutes = require('./routes/invoiceRoutes');
-const jobCostingRoutes = require('./routes/jobCostingRoutes');
-const attendanceRoutes = require('./routes/attendanceRoutes');
-const finishedProductRoutes = require('./routes/finishedProductRoutes');
+// Import routes safely with try/catch to avoid crashing if files are missing
+let userRoutes, productRoutes, jobRoutes, customerRoutes, invoiceRoutes, 
+    jobCostingRoutes, attendanceRoutes, finishedProductRoutes;
 
-// Routes
-app.use('/api/users', userRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/jobs', jobRoutes);
-app.use('/api/customers', customerRoutes);
-app.use('/api/invoices', invoiceRoutes);
-app.use('/api/job-costing', jobCostingRoutes);
-app.use('/api/attendance', attendanceRoutes);
-app.use('/api/finished-products', finishedProductRoutes);
+try {
+  userRoutes = require('./routes/userRoutes');
+  app.use('/api/users', userRoutes);
+} catch (error) {
+  console.warn('Warning: userRoutes not found or error loading:', error.message);
+  // Create empty router to avoid app crash
+  app.use('/api/users', express.Router());
+}
+
+try {
+  productRoutes = require('./routes/productRoutes');
+  app.use('/api/products', productRoutes);
+} catch (error) {
+  console.warn('Warning: productRoutes not found or error loading:', error.message);
+  app.use('/api/products', express.Router());
+}
+
+try {
+  jobRoutes = require('./routes/jobRoutes');
+  app.use('/api/jobs', jobRoutes);
+} catch (error) {
+  console.warn('Warning: jobRoutes not found or error loading:', error.message);
+  app.use('/api/jobs', express.Router());
+}
+
+try {
+  customerRoutes = require('./routes/customerRoutes');
+  app.use('/api/customers', customerRoutes);
+} catch (error) {
+  console.warn('Warning: customerRoutes not found or error loading:', error.message);
+  app.use('/api/customers', express.Router());
+}
+
+try {
+  invoiceRoutes = require('./routes/invoiceRoutes');
+  app.use('/api/invoices', invoiceRoutes);
+} catch (error) {
+  console.warn('Warning: invoiceRoutes not found or error loading:', error.message);
+  app.use('/api/invoices', express.Router());
+}
+
+try {
+  jobCostingRoutes = require('./routes/jobCostingRoutes');
+  app.use('/api/job-costing', jobCostingRoutes);
+} catch (error) {
+  console.warn('Warning: jobCostingRoutes not found or error loading:', error.message);
+  app.use('/api/job-costing', express.Router());
+}
+
+// These files don't exist yet but are included in the server.js file
+try {
+  attendanceRoutes = require('./routes/attendanceRoutes');
+  app.use('/api/attendance', attendanceRoutes);
+} catch (error) {
+  console.warn('Warning: attendanceRoutes not found or error loading:', error.message);
+  app.use('/api/attendance', express.Router());
+}
+
+try {
+  finishedProductRoutes = require('./routes/finishedProductRoutes');
+  app.use('/api/finished-products', finishedProductRoutes);
+} catch (error) {
+  console.warn('Warning: finishedProductRoutes not found or error loading:', error.message);
+  app.use('/api/finished-products', express.Router());
+}
 
 // Test DB connection - non-blocking
 (async () => {
