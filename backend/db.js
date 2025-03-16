@@ -12,11 +12,31 @@ Object.keys(process.env)
   .filter(key => !key.includes('KEY') && !key.includes('SECRET') && !key.includes('PASSWORD') && !key.includes('TOKEN'))
   .forEach(key => console.log(`${key}: ${process.env[key] || 'undefined'}`));
 
-// Try to get database connection info from MYSQL_URL first (Railway format)
+console.log('Looking for DATABASE_URL:', process.env.DATABASE_URL ? 'Found' : 'Not found');
+
+// Try to get database connection info from DATABASE_URL first
 let connectionConfig = null;
 
-// Option 1: Try MYSQL_URL (Railway format)
-if (process.env.MYSQL_URL) {
+// Option 1: Try DATABASE_URL (Railway recommended format)
+if (process.env.DATABASE_URL) {
+  console.log('Found DATABASE_URL, trying to parse it');
+  try {
+    const url = new URL(process.env.DATABASE_URL);
+    connectionConfig = {
+      host: url.hostname,
+      user: url.username,
+      password: url.password,
+      database: url.pathname.substring(1) || 'railway',
+      port: url.port || 3306
+    };
+    console.log('Successfully parsed DATABASE_URL');
+  } catch (error) {
+    console.error('Failed to parse DATABASE_URL:', error.message);
+  }
+}
+
+// Option 2: Try MYSQL_URL (Railway format)
+if (!connectionConfig && process.env.MYSQL_URL) {
   console.log('Found MYSQL_URL, trying to parse it');
   try {
     const url = new URL(process.env.MYSQL_URL);
@@ -33,7 +53,7 @@ if (process.env.MYSQL_URL) {
   }
 }
 
-// Option 2: Try MYSQL_PUBLIC_URL (Railway public format, if available)
+// Option 3: Try MYSQL_PUBLIC_URL (Railway public format, if available)
 if (!connectionConfig && process.env.MYSQL_PUBLIC_URL) {
   console.log('Found MYSQL_PUBLIC_URL, trying to parse it');
   try {
@@ -51,7 +71,7 @@ if (!connectionConfig && process.env.MYSQL_PUBLIC_URL) {
   }
 }
 
-// Option 3: Use individual env vars (MYSQLHOST, etc.)
+// Option 4: Use individual env vars (MYSQLHOST, etc.)
 if (!connectionConfig && process.env.MYSQLHOST) {
   console.log('Using individual MYSQL* environment variables');
   connectionConfig = {
@@ -63,7 +83,7 @@ if (!connectionConfig && process.env.MYSQLHOST) {
   };
 }
 
-// Option 4: Fallback to legacy DB_* variables
+// Option 5: Fallback to legacy DB_* variables
 if (!connectionConfig && process.env.DB_HOST) {
   console.log('Using legacy DB_* environment variables');
   connectionConfig = {
@@ -75,7 +95,7 @@ if (!connectionConfig && process.env.DB_HOST) {
   };
 }
 
-// Option 5: Last resort - localhost
+// Option 6: Last resort - localhost
 if (!connectionConfig) {
   console.log('No DB configuration found, using localhost defaults');
   connectionConfig = {
