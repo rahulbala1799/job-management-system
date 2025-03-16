@@ -1,20 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const mysql = require('mysql2');
 const path = require('path');
 const db = require('./db');
-
-// Create MySQL connection pool
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME || 'job_management',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-});
 
 const app = express();
 
@@ -31,14 +19,13 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Test database connection
-pool.getConnection((err, connection) => {
-  if (err) {
-    console.error('Error connecting to the database:', err);
-    return;
-  }
-  console.log('Successfully connected to MySQL database');
-  connection.release();
+// Health check endpoint MUST come before any other routes to ensure it works
+// even if there are errors elsewhere
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok', 
+    message: 'Server is running'
+  });
 });
 
 // Import routes
@@ -61,16 +48,7 @@ app.use('/api/job-costing', jobCostingRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/finished-products', finishedProductRoutes);
 
-// Health check endpoint for Railway - MUST RETURN 200 REGARDLESS OF DB STATE
-app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'ok', 
-    message: 'Server is running',
-    dbConnected: db.pool.pool.config.connectionConfig ? true : false 
-  });
-});
-
-// Test DB connection
+// Test DB connection - non-blocking
 (async () => {
   try {
     await db.query('SELECT 1');
@@ -106,7 +84,7 @@ app.use((err, req, res, next) => {
 });
 
 // Export pool for use in routes
-app.locals.db = pool.promise();
+app.locals.db = db.pool;
 
 // Start server
 app.listen(PORT, () => {
