@@ -7,11 +7,13 @@
   },
   "main": "backend/server.js",
   "scripts": {
-    "start": "cd backend && node server.js",
+    "start": "node backend/server.js",
     "build": "echo 'No build needed - using prebuilt frontend'",
     "install-backend": "cd backend && npm install",
     "postinstall": "npm run install-backend",
-    "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm start\""
+    "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm start\"",
+    "install-deps": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "init-db": "node backend/init-db.js"
   },
   "cacheDirectories": [
     "backend/node_modules"
