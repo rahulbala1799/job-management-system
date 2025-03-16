@@ -30,7 +30,16 @@ app.get('/health', (req, res) => {
 
 // Import routes safely with try/catch to avoid crashing if files are missing
 let userRoutes, productRoutes, jobRoutes, customerRoutes, invoiceRoutes, 
-    jobCostingRoutes, attendanceRoutes, finishedProductRoutes;
+    jobCostingRoutes, attendanceRoutes, finishedProductRoutes, setupRoutes;
+
+// Setup routes first (most important)
+try {
+  setupRoutes = require('./routes/setupRoutes');
+  app.use('/api/setup', setupRoutes);
+} catch (error) {
+  console.warn('Warning: setupRoutes not found or error loading:', error.message);
+  app.use('/api/setup', express.Router());
+}
 
 try {
   userRoutes = require('./routes/userRoutes');
