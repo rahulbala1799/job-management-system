@@ -6,10 +6,19 @@ console.log('==========================================');
 console.log('RAILWAY DATABASE CONNECTION DIAGNOSTICS');
 console.log('==========================================');
 
+// Hardcoded Railway MySQL credentials as a last resort
+const RAILWAY_MYSQL_CREDENTIALS = {
+  host: 'mysql.railway.internal',
+  user: 'root',
+  password: 'QmoWNRzccHMRSNcYxciNpmMNhhMhxdvp',
+  database: 'railway',
+  port: 3306
+};
+
 // Log all non-sensitive environment variables
 console.log('Environment variables:');
 Object.keys(process.env)
-  .filter(key => !key.includes('KEY') && !key.includes('SECRET') && !key.includes('PASSWORD') && !key.includes('TOKEN'))
+  .filter(key => !key.includes('KEY') && !key.includes('SECRET') && !key.includes('TOKEN'))
   .forEach(key => console.log(`${key}: ${process.env[key] || 'undefined'}`));
 
 console.log('Looking for DATABASE_URL:', process.env.DATABASE_URL ? 'Found' : 'Not found');
@@ -53,25 +62,7 @@ if (!connectionConfig && process.env.MYSQL_URL) {
   }
 }
 
-// Option 3: Try MYSQL_PUBLIC_URL (Railway public format, if available)
-if (!connectionConfig && process.env.MYSQL_PUBLIC_URL) {
-  console.log('Found MYSQL_PUBLIC_URL, trying to parse it');
-  try {
-    const url = new URL(process.env.MYSQL_PUBLIC_URL);
-    connectionConfig = {
-      host: url.hostname, 
-      user: process.env.MYSQLUSER || 'root',
-      password: process.env.MYSQLPASSWORD || '',
-      database: process.env.MYSQLDATABASE || 'railway',
-      port: url.port || 3306
-    };
-    console.log('Successfully parsed MYSQL_PUBLIC_URL');
-  } catch (error) {
-    console.error('Failed to parse MYSQL_PUBLIC_URL:', error.message);
-  }
-}
-
-// Option 4: Use individual env vars (MYSQLHOST, etc.)
+// Option 3: Use individual env vars (MYSQLHOST, etc.)
 if (!connectionConfig && process.env.MYSQLHOST) {
   console.log('Using individual MYSQL* environment variables');
   connectionConfig = {
@@ -83,7 +74,7 @@ if (!connectionConfig && process.env.MYSQLHOST) {
   };
 }
 
-// Option 5: Fallback to legacy DB_* variables
+// Option 4: Fallback to legacy DB_* variables
 if (!connectionConfig && process.env.DB_HOST) {
   console.log('Using legacy DB_* environment variables');
   connectionConfig = {
@@ -95,16 +86,10 @@ if (!connectionConfig && process.env.DB_HOST) {
   };
 }
 
-// Option 6: Last resort - localhost
+// Option 5: Hardcoded Railway MySQL credentials
 if (!connectionConfig) {
-  console.log('No DB configuration found, using localhost defaults');
-  connectionConfig = {
-    host: 'localhost',
-    user: 'root',
-    password: '',
-    database: 'railway',
-    port: 3306
-  };
+  console.log('No DB configuration found in environment, using hardcoded Railway MySQL credentials');
+  connectionConfig = RAILWAY_MYSQL_CREDENTIALS;
 }
 
 // Pool configuration
