@@ -61,9 +61,13 @@ app.use('/api/job-costing', jobCostingRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/finished-products', finishedProductRoutes);
 
-// Health check endpoint for Railway
+// Health check endpoint for Railway - MUST RETURN 200 REGARDLESS OF DB STATE
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', message: 'Server is running' });
+  res.status(200).json({ 
+    status: 'ok', 
+    message: 'Server is running',
+    dbConnected: db.pool.pool.config.connectionConfig ? true : false 
+  });
 });
 
 // Test DB connection

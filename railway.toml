@@ -13,7 +13,4 @@ restartPolicyMaxRetries = 5
 nixPkgs = ["nodejs", "npm"]
 
 [phases.install]
-cmds = ["npm install"]
-
-[phases.build]
-cmds = ["npm run build"] 
+cmds = ["npm install"] 
