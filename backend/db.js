@@ -43,12 +43,14 @@ const pool = mysql.createPool(config);
 // Helper function to execute queries
 async function query(sql, params) {
   try {
+    console.log('Executing query:', sql.substring(0, 100), params ? 'with params' : 'without params');
     const [results] = await pool.execute(sql, params);
     return results;
   } catch (error) {
     console.error('Database query error:', error.message);
     console.error('Query:', sql);
     console.error('Parameters:', params);
+    // Re-throw with more details
     throw error;
   }
 }

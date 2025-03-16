@@ -116,19 +116,33 @@ router.get('/init-db', async (req, res) => {
     
     // Create tables
     for (const sql of CREATE_TABLES) {
-      await db.query(sql);
-      results.push(`Table created: ${sql.split('CREATE TABLE IF NOT EXISTS ')[1].split(' ')[0]}`);
+      try {
+        console.log(`Executing: ${sql.substring(0, 60)}...`);
+        await db.query(sql);
+        results.push(`Table created: ${sql.split('CREATE TABLE IF NOT EXISTS ')[1].split(' ')[0]}`);
+      } catch (tableError) {
+        console.error('Error creating table:', tableError);
+        results.push(`Failed to create table: ${tableError.message}`);
+        // Continue with next table instead of failing completely
+      }
     }
     
     // Seed initial data
-    for (const sql of SEED_DATA) {
-      await db.query(sql);
-      results.push('Default admin user created');
+    try {
+      for (const sql of SEED_DATA) {
+        console.log(`Executing seed: ${sql.substring(0, 60)}...`);
+        await db.query(sql);
+        results.push('Default admin user created');
+      }
+    } catch (seedError) {
+      console.error('Error seeding data:', seedError);
+      results.push(`Failed to seed data: ${seedError.message}`);
+      // Continue with returning results instead of failing
     }
     
     res.json({
-      success: true,
-      message: 'Database initialized successfully',
+      success: results.every(r => !r.includes('Failed')),
+      message: 'Database initialization completed with some results',
       details: results,
       login: {
         username: 'admin',
@@ -137,10 +151,20 @@ router.get('/init-db', async (req, res) => {
     });
   } catch (error) {
     console.error('Database initialization error:', error);
+    // Get full error details
+    const errorDetails = {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      errno: error.errno,
+      sqlState: error.sqlState,
+      sqlMessage: error.sqlMessage
+    };
     res.status(500).json({
       success: false,
       message: 'Database initialization failed',
-      error: error.message
+      error: error.message || 'Unknown error',
+      errorDetails
     });
   }
 });
