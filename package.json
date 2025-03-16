@@ -3,12 +3,15 @@
   "version": "1.0.0",
   "description": "Job Management System for printing businesses",
   "engines": {
-    "node": "18.x"
+    "node": ">=16.x"
   },
+  "main": "backend/server.js",
   "scripts": {
-    "start": "cd backend && NODE_ENV=production node server.js",
+    "start": "cd backend && node server.js",
     "build": "cd frontend && npm install && npm run build",
-    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "install-backend": "cd backend && npm install",
+    "install-frontend": "cd frontend && npm install",
+    "postinstall": "npm run install-backend",
     "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm start\""
   },
   "cacheDirectories": [
@@ -16,6 +19,6 @@
     "backend/node_modules"
   ],
   "dependencies": {
-    "concurrently": "^8.0.1"
+    "concurrently": "^8.2.2"
   }
 }
