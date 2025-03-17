@@ -8,18 +8,33 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     const db = req.app.locals.db;
-
+    
+    console.log('Login attempt:', { email, passwordProvided: !!password });
+    
     // Find user by email or username
     const [users] = await db.query('SELECT * FROM users WHERE email = ? OR username = ?', [email, email]);
+    console.log('Users found:', users.length);
+    
     const user = users[0];
-
     if (!user) {
+      console.log('User not found for login attempt');
       return res.status(401).json({ message: 'Invalid credentials' });
     }
+    
+    console.log('User found:', { 
+      id: user.id, 
+      username: user.username, 
+      email: user.email,
+      passwordHash: user.password?.substring(0, 10) + '...' 
+    });
 
     // Check password
+    console.log('Comparing passwords...');
     const isValidPassword = await bcrypt.compare(password, user.password);
+    console.log('Password valid:', isValidPassword);
+    
     if (!isValidPassword) {
+      console.log('Invalid password for user:', user.username);
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
@@ -29,6 +44,8 @@ router.post('/login', async (req, res) => {
       process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '24h' }
     );
+    
+    console.log('Login successful for user:', user.username);
 
     res.json({
       token,
