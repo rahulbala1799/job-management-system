@@ -77,9 +77,30 @@ const CreateJob = () => {
         setProducts(allProducts);
         
         // Separate products by category
-        setPackagingProducts(allProducts.filter(p => p.category === 'packaging') as PackagingProduct[]);
-        setWideFormatProducts(allProducts.filter(p => p.category === 'wide_format') as WideFormatProduct[]);
-        setLeafletsProducts(allProducts.filter(p => p.category === 'leaflets') as LeafletsProduct[]);
+        if (!Array.isArray(allProducts)) {
+          console.warn('Products data is not an array:', allProducts);
+          setPackagingProducts([]);
+          setWideFormatProducts([]);
+          setLeafletsProducts([]);
+        } else {
+          setPackagingProducts(
+            allProducts
+              .filter(p => p && p.category === 'packaging')
+              .map(p => p as PackagingProduct)
+          );
+          
+          setWideFormatProducts(
+            allProducts
+              .filter(p => p && p.category === 'wide_format')
+              .map(p => p as WideFormatProduct)
+          );
+          
+          setLeafletsProducts(
+            allProducts
+              .filter(p => p && p.category === 'leaflets')
+              .map(p => p as LeafletsProduct)
+          );
+        }
         
         // If in edit mode, fetch job data
         if (isEditMode && id) {

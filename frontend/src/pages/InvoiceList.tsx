@@ -100,16 +100,19 @@ const InvoiceList = () => {
   };
 
   // Filter invoices based on search term and status filter
-  const filteredInvoices = invoices.filter(invoice => {
-    if (filter !== 'all' && invoice.status !== filter) return false;
-    
-    const searchLower = search.toLowerCase();
-    return (
-      invoice.invoice_number.toLowerCase().includes(searchLower) ||
-      (invoice.customer_name && invoice.customer_name.toLowerCase().includes(searchLower)) ||
-      (invoice.customer_company && invoice.customer_company.toLowerCase().includes(searchLower))
-    );
-  });
+  const filteredInvoices = Array.isArray(invoices) 
+    ? invoices.filter(invoice => {
+        if (!invoice) return false;
+        if (filter !== 'all' && invoice.status !== filter) return false;
+        
+        const searchLower = search.toLowerCase();
+        return (
+          invoice.invoice_number?.toLowerCase().includes(searchLower) ||
+          (invoice.customer_name && invoice.customer_name.toLowerCase().includes(searchLower)) ||
+          (invoice.customer_company && invoice.customer_company.toLowerCase().includes(searchLower))
+        );
+      })
+    : [];
 
   // Format currency
   const formatCurrency = (amount: number | string | null | undefined) => {
