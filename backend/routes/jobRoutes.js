@@ -6,29 +6,33 @@ const db = require('../db');
 // Get all jobs
 router.get('/', async (req, res) => {
   try {
-    // Get all jobs
+    const db = req.app.locals.db;
     const [jobs] = await db.query(`
       SELECT * FROM jobs
       ORDER BY created_at DESC
     `);
-
-    // Get job items for each job
-    for (const job of jobs) {
-      const [items] = await db.query(`
-        SELECT id, job_id, product_id, product_name, product_category, quantity, 
-               work_completed, is_printed, width_m, height_m, unit_price, 
-               total_price, ink_cost_per_unit, ink_consumption
-        FROM job_items
-        WHERE job_id = ?
-      `, [job.id]);
-      
-      job.items = items;
+    
+    // Ensure jobs is always an array, even if empty
+    if (!jobs || !Array.isArray(jobs)) {
+      console.log('Query returned non-array result:', jobs);
+      return res.json([]);
     }
-
-    res.json(jobs);
+    
+    // Process jobs safely
+    const processedJobs = [];
+    for (const job of jobs) {
+      processedJobs.push({
+        ...job,
+        created_at: job.created_at ? new Date(job.created_at).toISOString() : null,
+        updated_at: job.updated_at ? new Date(job.updated_at).toISOString() : null,
+        delivery_date: job.delivery_date ? new Date(job.delivery_date).toISOString() : null,
+      });
+    }
+    
+    res.json(processedJobs);
   } catch (error) {
     console.error('Error fetching jobs:', error);
-    res.status(500).json({ message: 'Failed to fetch jobs' });
+    res.status(500).json({ message: 'Error fetching jobs' });
   }
 });
 

@@ -95,7 +95,7 @@ router.post('/register', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const db = req.app.locals.db;
-    const [users] = await db.query('SELECT id, name, username, email, role, created_at FROM users');
+    const [users] = await db.query('SELECT id, username, email, role, created_at FROM users');
     res.json(users);
   } catch (error) {
     console.error('Error fetching users:', error);
