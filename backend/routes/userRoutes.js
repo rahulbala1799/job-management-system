@@ -9,8 +9,8 @@ router.post('/login', async (req, res) => {
     const { email, password } = req.body;
     const db = req.app.locals.db;
 
-    // Find user by email
-    const [users] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+    // Find user by email or username
+    const [users] = await db.query('SELECT * FROM users WHERE email = ? OR username = ?', [email, email]);
     const user = users[0];
 
     if (!user) {
@@ -26,7 +26,7 @@ router.post('/login', async (req, res) => {
     // Generate JWT token
     const token = jwt.sign(
       { userId: user.id, role: user.role },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '24h' }
     );
 
