@@ -211,7 +211,7 @@ const StatCard = ({
 }) => (
   <Grid item xs={12} sm={6} md={3}>
     <Card 
-      sx={{ 
+    sx={{
         minHeight: '160px', 
         cursor: onClick ? 'pointer' : 'default',
         transition: 'all 0.3s',
@@ -224,7 +224,7 @@ const StatCard = ({
     >
       <CardContent>
         <Typography variant="h6" color="textSecondary" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-          {title}
+      {title}
           {tooltip && (
             <Tooltip title={tooltip}>
               <IconButton size="small">
@@ -232,10 +232,10 @@ const StatCard = ({
               </IconButton>
             </Tooltip>
           )}
-        </Typography>
+    </Typography>
         <Typography variant="h4" component="div" sx={{ color: color, fontWeight: 'bold' }}>
-          {value}
-        </Typography>
+      {value}
+    </Typography>
       </CardContent>
     </Card>
   </Grid>
@@ -896,34 +896,34 @@ const Overview = () => {
         </Grid>
         
         <Divider sx={{ marginY: 4 }} />
-        
-        <Grid container spacing={3}>
+
+      <Grid container spacing={3}>
           <Grid item xs={12}>
             <Typography variant="h6" gutterBottom>Profit by Product Class</Typography>
           </Grid>
           
-          <StatCard 
+          <StatCard
             title="Total Profit"
             value={`€${totalProfit.toFixed(2)}`}
             color="#1976d2"
             tooltip="Total profit across all product classes"
           />
           
-          <StatCard 
+          <StatCard
             title="Packaging Profit"
             value={`€${packagingProfit.toFixed(2)}`}
             color="#1976d2"
             tooltip="Profit from packaging products"
           />
           
-          <StatCard 
+          <StatCard
             title="Wide Format Profit"
             value={`€${wideFormatProfit.toFixed(2)}`}
             color="#1976d2"
             tooltip="Profit from wide format products"
           />
           
-          <StatCard 
+          <StatCard
             title="Leaflets Profit"
             value={`€${leafletsProfit.toFixed(2)}`}
             color="#1976d2"

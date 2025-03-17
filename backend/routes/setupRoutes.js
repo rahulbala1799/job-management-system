@@ -524,4 +524,110 @@ router.get('/direct-login', async (req, res) => {
   }
 });
 
+// Super simple login bypass that doesn't use prepared statements
+router.get('/login-html', async (req, res) => {
+  try {
+    // Hardcoded user that matches what we're trying to create
+    const hardcodedUser = {
+      id: 1,
+      username: 'admin',
+      email: 'admin@example.com',
+      role: 'admin'
+    };
+    
+    // Generate token 
+    const jwt = require('jsonwebtoken');
+    const token = jwt.sign(
+      { userId: hardcodedUser.id, role: hardcodedUser.role },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '24h' }
+    );
+    
+    // Create HTML with auto-login script
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Direct Login</title>
+        <style>
+          body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+          .card { border: 1px solid #ccc; border-radius: 8px; padding: 20px; margin-top: 20px; }
+          h1 { color: #1976d2; }
+          .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #1976d2; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; margin-right: 10px; }
+          @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+          pre { background: #f5f5f5; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        </style>
+      </head>
+      <body>
+        <h1>Job Management System</h1>
+        <div class="card">
+          <h2><div class="spinner"></div> Setting up login...</h2>
+          <p>Attempting to log you in automatically.</p>
+          
+          <div id="status">Setting up authentication...</div>
+          
+          <pre id="debug"></pre>
+          
+          <p>If automatic redirect doesn't work:</p>
+          <ol>
+            <li>Click the "Manual Setup" button</li>
+            <li>Navigate to <a href="/dashboard">/dashboard</a></li>
+          </ol>
+          
+          <button id="manualBtn" style="padding: 10px; margin-top: 10px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer;">Manual Setup</button>
+        </div>
+        
+        <script>
+          const debugEl = document.getElementById('debug');
+          const statusEl = document.getElementById('status');
+          
+          function log(msg) {
+            debugEl.textContent += msg + '\\n';
+          }
+          
+          function setupAuth() {
+            try {
+              // Set token and user in localStorage
+              log('Setting token...');
+              localStorage.setItem('token', '${token}');
+              
+              log('Setting user data...');
+              localStorage.setItem('user', '${JSON.stringify(hardcodedUser).replace(/'/g, "\\'")}');
+              
+              log('Auth data set successfully');
+              statusEl.textContent = 'Login successful! Redirecting...';
+              
+              // Redirect to dashboard
+              setTimeout(() => {
+                window.location.href = '/dashboard';
+              }, 1500);
+              
+              return true;
+            } catch (error) {
+              log('Error: ' + error.message);
+              statusEl.textContent = 'Error setting up login. Try manual setup.';
+              return false;
+            }
+          }
+          
+          // Try automatic setup
+          setupAuth();
+          
+          // Manual button
+          document.getElementById('manualBtn').addEventListener('click', function() {
+            setupAuth();
+            statusEl.textContent = 'Manual setup done. Click dashboard link above.';
+          });
+        </script>
+      </body>
+      </html>
+    `;
+    
+    res.send(html);
+  } catch (error) {
+    console.error('Login HTML error:', error);
+    res.status(500).send('Error: ' + error.message);
+  }
+});
+
 module.exports = router; 
