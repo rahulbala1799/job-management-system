@@ -202,18 +202,27 @@ const ProductManagement: React.FC = () => {
       // Calculate total cost per sqm for finished product
       let totalCostPerSqm = 0;
       
-      for (const component of (formData as FinishedProductFormData).components) {
-        const componentProduct = allProducts.find(p => p.id === component.component_product_id);
-        if (componentProduct) {
-          let componentCost = 0;
+      // Safety check for components
+      const components = (formData as FinishedProductFormData).components;
+      if (Array.isArray(components)) {
+        for (const component of components) {
+          if (!component) continue;
+          
+          // Safety check for allProducts
+          if (!Array.isArray(allProducts)) continue;
+          
+          const componentProduct = allProducts.find(p => p && p.id === component.component_product_id);
+          if (componentProduct) {
+            let componentCost = 0;
 
-          if (componentProduct.category === 'wide_format') {
-            componentCost = (componentProduct as WideFormatProduct).cost_per_sqm;
-          } else if (componentProduct.category === 'finished_product') {
-            componentCost = (componentProduct as FinishedProduct).cost_per_sqm;
+            if (componentProduct.category === 'wide_format') {
+              componentCost = (componentProduct as WideFormatProduct).cost_per_sqm;
+            } else if (componentProduct.category === 'finished_product') {
+              componentCost = (componentProduct as FinishedProduct).cost_per_sqm;
+            }
+
+            totalCostPerSqm += componentCost * component.quantity;
           }
-
-          totalCostPerSqm += componentCost * component.quantity;
         }
       }
       
@@ -506,14 +515,21 @@ const ProductManagement: React.FC = () => {
               <Typography variant="subtitle1" gutterBottom>
                 Components
               </Typography>
-              {(formData as FinishedProductFormData).components.length === 0 ? (
+              {!(formData as FinishedProductFormData).components || 
+                !(Array.isArray((formData as FinishedProductFormData).components)) || 
+                (formData as FinishedProductFormData).components.length === 0 ? (
                 <Typography variant="body2" color="text.secondary">
                   No components added yet. Add components to create a finished product.
                 </Typography>
               ) : (
                 <List>
                   {(formData as FinishedProductFormData).components.map((component, index) => {
-                    const componentProduct = allProducts.find(p => p.id === component.component_product_id);
+                    if (!component) return null;
+                    
+                    const componentProduct = Array.isArray(allProducts) ? 
+                      allProducts.find(p => p && p.id === component.component_product_id) : 
+                      undefined;
+                      
                     return (
                       <React.Fragment key={index}>
                         <ListItem>
@@ -945,17 +961,20 @@ const ProductManagement: React.FC = () => {
                 label="Component"
               >
                 <MenuItem value={0} disabled>Select a component</MenuItem>
-                {allProducts
-                  .filter(p => p.category === 'wide_format' || p.category === 'finished_product')
-                  .filter(p => !(formData.category === 'finished_product' && 
-                                (formData as FinishedProductFormData).components.some(
-                                  c => c.component_product_id === p.id
-                                )))
-                  .map(p => (
-                    <MenuItem key={p.id} value={p.id}>
-                      {p.name} ({p.category === 'wide_format' ? 'Wide Format' : 'Finished Product'})
-                    </MenuItem>
-                  ))
+                {Array.isArray(allProducts) ? 
+                  allProducts
+                    .filter(p => p && (p.category === 'wide_format' || p.category === 'finished_product'))
+                    .filter(p => p && !(formData.category === 'finished_product' && 
+                                  Array.isArray((formData as FinishedProductFormData).components) &&
+                                  (formData as FinishedProductFormData).components.some(
+                                    c => c && c.component_product_id === p.id
+                                  )))
+                    .map(p => (
+                      <MenuItem key={p.id} value={p.id}>
+                        {p.name} ({p.category === 'wide_format' ? 'Wide Format' : 'Finished Product'})
+                      </MenuItem>
+                    ))
+                  : <MenuItem disabled>No components available</MenuItem>
                 }
               </Select>
             </FormControl>
