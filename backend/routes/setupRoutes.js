@@ -397,15 +397,54 @@ router.get('/direct-login', async (req, res) => {
     
     console.log('Starting direct login process...');
     
-    // Get admin user
-    const [users] = await db.query('SELECT * FROM users WHERE username = ?', ['admin']);
-    console.log('Users found:', users.length);
-    
-    if (users.length === 0) {
-      return res.status(404).send('Admin user not found. Please create one first.');
+    // Check database connection first
+    try {
+      const [testResult] = await db.query('SELECT 1 as test');
+      console.log('Database connection test:', testResult);
+    } catch (dbError) {
+      console.error('Database connection error:', dbError);
+      return res.status(500).send('Database connection failed: ' + dbError.message);
     }
     
-    const user = users[0];
+    // Get admin user with more detailed logging
+    console.log('Querying for admin user...');
+    const [result] = await db.query('SELECT * FROM users WHERE username = ?', ['admin']);
+    
+    console.log('Query result type:', typeof result);
+    console.log('Query result is array:', Array.isArray(result));
+    console.log('Query result length:', result ? result.length : 'N/A');
+    
+    // Make sure result is an array as expected
+    if (!Array.isArray(result) || result.length === 0) {
+      console.log('No admin user found, creating one...');
+      
+      // Create admin user on the fly
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash('admin123', salt);
+      
+      await db.query(`
+        INSERT INTO users (username, password, email, role) 
+        VALUES (?, ?, ?, ?)
+      `, ['admin', hashedPassword, 'admin@example.com', 'admin']);
+      
+      // Get newly created user
+      const [newUsers] = await db.query('SELECT * FROM users WHERE username = ?', ['admin']);
+      if (!Array.isArray(newUsers) || newUsers.length === 0) {
+        return res.status(500).send('Failed to create admin user. Please try running /api/setup/create-admin first.');
+      }
+      
+      console.log('Created new admin user');
+      var user = newUsers[0];
+    } else {
+      var user = result[0];
+    }
+    
+    // Additional safety check
+    if (!user || !user.id) {
+      console.error('User object invalid:', user);
+      return res.status(500).send('User object is invalid. Try running /api/setup/create-admin first and check the logs.');
+    }
+    
     console.log('Found user:', { id: user.id, username: user.username, email: user.email });
     
     // Generate token
@@ -466,7 +505,7 @@ router.get('/direct-login', async (req, res) => {
     res.send(html);
   } catch (error) {
     console.error('Direct login error:', error);
-    res.status(500).send('Error during direct login: ' + error.message);
+    res.status(500).send(`Error during direct login: ${error.message}\n\nStack: ${error.stack}`);
   }
 });
 
