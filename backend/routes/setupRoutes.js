@@ -389,4 +389,85 @@ router.get('/complete-setup', async (req, res) => {
   }
 });
 
+// Direct login with redirect
+router.get('/direct-login', async (req, res) => {
+  try {
+    const bcrypt = require('bcryptjs');
+    const jwt = require('jsonwebtoken');
+    
+    console.log('Starting direct login process...');
+    
+    // Get admin user
+    const [users] = await db.query('SELECT * FROM users WHERE username = ?', ['admin']);
+    console.log('Users found:', users.length);
+    
+    if (users.length === 0) {
+      return res.status(404).send('Admin user not found. Please create one first.');
+    }
+    
+    const user = users[0];
+    console.log('Found user:', { id: user.id, username: user.username, email: user.email });
+    
+    // Generate token
+    const token = jwt.sign(
+      { userId: user.id, role: user.role },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '24h' }
+    );
+    
+    // Create HTML with auto-login script
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Logging you in...</title>
+        <style>
+          body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+          .card { border: 1px solid #ccc; border-radius: 8px; padding: 20px; margin-top: 20px; }
+          h1 { color: #1976d2; }
+          .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #1976d2; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; margin-right: 10px; }
+          @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        </style>
+      </head>
+      <body>
+        <h1>Job Management System</h1>
+        <div class="card">
+          <h2><div class="spinner"></div> Logging you in automatically...</h2>
+          <p>You should be redirected to the dashboard automatically in a moment.</p>
+          <p>If you're not redirected, <a href="#" id="manual-link">click here</a>.</p>
+        </div>
+        
+        <script>
+          // Set auth data in localStorage
+          localStorage.setItem('token', '${token}');
+          localStorage.setItem('user', '${JSON.stringify({
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            role: user.role
+          }).replace(/'/g, "\\'")}');
+          
+          // Create link
+          document.getElementById('manual-link').addEventListener('click', function(e) {
+            e.preventDefault();
+            window.location.href = '/dashboard';
+          });
+          
+          // Redirect after a short delay
+          setTimeout(() => {
+            window.location.href = '/dashboard';
+          }, 1500);
+        </script>
+      </body>
+      </html>
+    `;
+    
+    // Send HTML response
+    res.send(html);
+  } catch (error) {
+    console.error('Direct login error:', error);
+    res.status(500).send('Error during direct login: ' + error.message);
+  }
+});
+
 module.exports = router; 
