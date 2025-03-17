@@ -100,6 +100,7 @@ try {
   app.use('/api/attendance', express.Router());
 }
 
+// Commented out finishedProductRoutes since it doesn't exist
 try {
   finishedProductRoutes = require('./routes/finishedProductRoutes');
   app.use('/api/finished-products', finishedProductRoutes);

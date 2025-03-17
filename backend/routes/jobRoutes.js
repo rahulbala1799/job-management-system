@@ -13,7 +13,12 @@ router.get('/', async (req, res) => {
     `);
     
     // Ensure jobs is always an array, even if empty
-    if (!jobs || !Array.isArray(jobs)) {
+    if (!jobs) {
+      console.log('Query returned null or undefined result');
+      return res.json([]);
+    }
+    
+    if (!Array.isArray(jobs)) {
       console.log('Query returned non-array result:', jobs);
       return res.json([]);
     }
