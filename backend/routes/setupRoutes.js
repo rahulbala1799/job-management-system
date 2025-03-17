@@ -1514,13 +1514,14 @@ router.get('/create-sample-products', async (req, res) => {
   try {
     console.log('Creating sample products...');
     
-    // Ensure products table exists
+    // Ensure products table exists or can be created
     let productsTableExists = false;
     try {
       // Check if products table exists
       const [tables] = await db.query('SHOW TABLES');
       const tableList = Array.isArray(tables) ? tables.map(t => Object.values(t)[0]) : [];
       productsTableExists = tableList.includes('products');
+      console.log('Products table exists:', productsTableExists);
     } catch (error) {
       console.error('Error checking tables:', error);
     }
@@ -1541,17 +1542,20 @@ router.get('/create-sample-products', async (req, res) => {
         `);
         console.log('Created products table');
       } catch (error) {
-        console.error('Error creating products table:', error);
-        return res.status(500).json({
-          success: false,
-          message: 'Error creating products table',
-          error: error.message
-        });
+        // If the error is "table already exists", just continue
+        if (error.message && error.message.includes('already exists')) {
+          console.log('Products table already exists, continuing...');
+          productsTableExists = true;
+        } else {
+          console.error('Error creating products table:', error);
+          // Continue anyway instead of returning error - table might exist with different detection
+        }
       }
     }
 
-    // Add columns needed for all products
+    // Add columns needed for all products regardless of table creation result
     const requiredColumns = [
+      { name: 'price', type: 'DECIMAL(10,2)' },
       { name: 'category', type: 'VARCHAR(100)' },
       { name: 'material', type: 'VARCHAR(100)' },
       { name: 'width', type: 'DECIMAL(10,2)' },
@@ -1577,6 +1581,7 @@ router.get('/create-sample-products', async (req, res) => {
         }
       } catch (err) {
         console.error(`Error checking/adding column ${column.name}:`, err);
+        // Continue with next column
       }
     }
 
