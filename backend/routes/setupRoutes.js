@@ -633,13 +633,42 @@ router.get('/login-html', async (req, res) => {
 
 // Fix database schema issues
 router.get('/fix-schema', async (req, res) => {
-  const alterStatements = [];
-  const results = {};
-  
   try {
-    console.log('Starting schema fix...');
-    
-    // Check if category column exists in products table
+    const fixesApplied = [];
+    const results = {};
+
+    // Check if products table exists
+    let productsTableExists = false;
+    try {
+      // Safely check if products table exists
+      const [tables] = await db.query('SHOW TABLES');
+      const tableList = Array.isArray(tables) ? tables.map(t => Object.values(t)[0]) : [];
+      productsTableExists = tableList.includes('products');
+      results.existing_tables = tableList.join(', ');
+    } catch (error) {
+      results.existing_tables = `Error: ${error.message}`;
+    }
+
+    // Create products table if it doesn't exist
+    if (!productsTableExists) {
+      try {
+        await db.query(`
+          CREATE TABLE products (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            description TEXT,
+            price DECIMAL(10, 2) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          )
+        `);
+        fixesApplied.push('Created products table');
+      } catch (error) {
+        results.create_products_table = `Error: ${error.message}`;
+      }
+    }
+
+    // Check and add category column to products table
     try {
       const [columns] = await db.query(`
         SELECT COLUMN_NAME 
@@ -649,44 +678,25 @@ router.get('/fix-schema', async (req, res) => {
         AND COLUMN_NAME = 'category'
       `);
       
-      if (columns.length === 0) {
-        console.log('Adding category column to products table');
-        alterStatements.push(`ALTER TABLE products ADD COLUMN category VARCHAR(100) DEFAULT 'general'`);
+      if (Array.isArray(columns) && columns.length === 0) {
         await db.query(`ALTER TABLE products ADD COLUMN category VARCHAR(100) DEFAULT 'general'`);
-        results.products_category = 'Added';
-      } else {
-        results.products_category = 'Already exists';
+        fixesApplied.push('Added category column to products table');
       }
+      results.products_category = 'Checked products category column';
     } catch (error) {
-      console.error('Error checking products.category column:', error);
       results.products_category = `Error: ${error.message}`;
     }
-    
-    // Add more schema fixes here as needed
-    
-    // List all tables
-    try {
-      const [tables] = await db.query(`
-        SELECT TABLE_NAME 
-        FROM INFORMATION_SCHEMA.TABLES 
-        WHERE TABLE_SCHEMA = DATABASE()
-      `);
-      
-      results.existing_tables = tables.map(t => t.TABLE_NAME);
-    } catch (error) {
-      console.error('Error listing tables:', error);
-      results.existing_tables = `Error: ${error.message}`;
-    }
-    
-    // Return schema fix results
+
+    // Add more schema fixes as needed
+
     res.json({
       success: true,
       message: 'Schema fixes applied',
-      fixes_applied: alterStatements,
-      results: results
+      fixes_applied: fixesApplied,
+      results
     });
   } catch (error) {
-    console.error('Schema fix error:', error);
+    console.error('Error fixing schema:', error);
     res.status(500).json({
       success: false,
       message: 'Error fixing schema',
@@ -1495,6 +1505,226 @@ router.get('/import-local-products', async (req, res) => {
       message: 'Error importing products from local database',
       error: error.message,
       stack: error.stack
+    });
+  }
+});
+
+// Directly create products without local database
+router.get('/create-sample-products', async (req, res) => {
+  try {
+    console.log('Creating sample products...');
+    
+    // Ensure products table exists
+    let productsTableExists = false;
+    try {
+      // Check if products table exists
+      const [tables] = await db.query('SHOW TABLES');
+      const tableList = Array.isArray(tables) ? tables.map(t => Object.values(t)[0]) : [];
+      productsTableExists = tableList.includes('products');
+    } catch (error) {
+      console.error('Error checking tables:', error);
+    }
+
+    // Create products table if it doesn't exist
+    if (!productsTableExists) {
+      try {
+        await db.query(`
+          CREATE TABLE products (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            description TEXT,
+            price DECIMAL(10, 2) NOT NULL,
+            category VARCHAR(100) DEFAULT 'general',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          )
+        `);
+        console.log('Created products table');
+      } catch (error) {
+        console.error('Error creating products table:', error);
+        return res.status(500).json({
+          success: false,
+          message: 'Error creating products table',
+          error: error.message
+        });
+      }
+    }
+
+    // Add columns needed for all products
+    const requiredColumns = [
+      { name: 'category', type: 'VARCHAR(100)' },
+      { name: 'material', type: 'VARCHAR(100)' },
+      { name: 'width', type: 'DECIMAL(10,2)' },
+      { name: 'height', type: 'DECIMAL(10,2)' },
+      { name: 'quantity', type: 'INT' },
+      { name: 'image_url', type: 'VARCHAR(255)' }
+    ];
+
+    // Check and add required columns
+    for (const column of requiredColumns) {
+      try {
+        const [colCheck] = await db.query(`
+          SELECT COLUMN_NAME 
+          FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'products' 
+          AND COLUMN_NAME = ?
+        `, [column.name]);
+        
+        if (!Array.isArray(colCheck) || colCheck.length === 0) {
+          console.log(`Adding ${column.name} column to products table`);
+          await db.query(`ALTER TABLE products ADD COLUMN ${column.name} ${column.type}`);
+        }
+      } catch (err) {
+        console.error(`Error checking/adding column ${column.name}:`, err);
+      }
+    }
+
+    // Sample products
+    const sampleProducts = [
+      // Packaging products
+      {
+        name: 'Business Cards',
+        description: 'Standard business cards, 350gsm, full color print',
+        price: 45.99,
+        category: 'packaging',
+        material: 'Premium card',
+        width: 85,
+        height: 55,
+        quantity: 500,
+        image_url: 'https://example.com/business-cards.jpg'
+      },
+      {
+        name: 'Gift Boxes',
+        description: 'Premium gift boxes with custom printing',
+        price: 89.50,
+        category: 'packaging',
+        material: 'Card with lamination',
+        width: 200,
+        height: 150,
+        quantity: 100,
+        image_url: 'https://example.com/gift-boxes.jpg'
+      },
+      // Wide format products
+      {
+        name: 'Vinyl Banner',
+        description: 'Large format vinyl banner for outdoor use',
+        price: 120.00,
+        category: 'wide format',
+        material: 'Heavy duty vinyl',
+        width: 2000,
+        height: 1000,
+        quantity: 1,
+        image_url: 'https://example.com/vinyl-banner.jpg'
+      },
+      {
+        name: 'Canvas Print',
+        description: 'Gallery quality canvas print',
+        price: 95.00,
+        category: 'wide format',
+        material: 'Artist canvas',
+        width: 500,
+        height: 700,
+        quantity: 1,
+        image_url: 'https://example.com/canvas-print.jpg'
+      },
+      // Leaflets products
+      {
+        name: 'Flyers',
+        description: 'A5 double-sided full color flyers',
+        price: 50.00,
+        category: 'leaflets',
+        material: '170gsm gloss',
+        width: 148,
+        height: 210,
+        quantity: 1000,
+        image_url: 'https://example.com/flyers.jpg'
+      },
+      {
+        name: 'Brochures',
+        description: 'A4 folded brochures, 6 pages',
+        price: 120.00,
+        category: 'leaflets',
+        material: '150gsm silk',
+        width: 210,
+        height: 297,
+        quantity: 500,
+        image_url: 'https://example.com/brochures.jpg'
+      }
+    ];
+
+    // Insert or update sample products
+    let inserted = 0;
+    let updated = 0;
+    const errors = [];
+
+    for (const product of sampleProducts) {
+      try {
+        // Check if product already exists
+        const [existing] = await db.query('SELECT * FROM products WHERE name = ?', [product.name]);
+        
+        if (Array.isArray(existing) && existing.length > 0) {
+          // Update existing product
+          const productId = existing[0].id;
+          
+          // Build update query
+          const columns = Object.keys(product);
+          const values = Object.values(product);
+          
+          // Generate SET clause
+          const setClause = columns.map(col => `${col} = ?`).join(', ');
+          
+          // Execute update
+          await db.query(`
+            UPDATE products 
+            SET ${setClause}
+            WHERE id = ?
+          `, [...values, productId]);
+          
+          console.log(`Updated product: ${product.name}`);
+          updated++;
+        } else {
+          // Insert new product
+          const columns = Object.keys(product);
+          const placeholders = columns.map(() => '?');
+          const values = Object.values(product);
+          
+          // Execute insert
+          await db.query(`
+            INSERT INTO products (${columns.join(', ')})
+            VALUES (${placeholders.join(', ')})
+          `, values);
+          
+          console.log(`Inserted product: ${product.name}`);
+          inserted++;
+        }
+      } catch (err) {
+        console.error(`Error processing product ${product.name}:`, err);
+        errors.push({
+          product: product.name,
+          error: err.message
+        });
+      }
+    }
+    
+    // Return results
+    res.json({
+      success: true,
+      message: 'Sample products created successfully',
+      results: {
+        total: sampleProducts.length,
+        inserted,
+        updated,
+        errors: errors.length,
+        errorDetails: errors
+      }
+    });
+  } catch (error) {
+    console.error('Error creating sample products:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error creating sample products',
+      error: error.message
     });
   }
 });
