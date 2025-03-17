@@ -244,4 +244,49 @@ router.get('/create-admin', async (req, res) => {
   }
 });
 
+// Direct login bypass - creates a valid token without checking password
+router.get('/bypass-login', async (req, res) => {
+  try {
+    const jwt = require('jsonwebtoken');
+    
+    // Get admin user from database
+    const [users] = await db.query('SELECT * FROM users WHERE username = ?', ['admin']);
+    const user = users[0];
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Admin user not found. Please run /api/setup/create-admin first'
+      });
+    }
+    
+    // Generate JWT token with admin privileges
+    const token = jwt.sign(
+      { userId: user.id, role: user.role },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '24h' }
+    );
+    
+    res.json({
+      success: true,
+      message: 'Login bypass successful. Copy this token and instructions below.',
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email, 
+        role: user.role
+      },
+      instructions: 'Open browser console and run these commands: localStorage.setItem("token", "' + token + '"); localStorage.setItem("user", JSON.stringify(' + JSON.stringify(user) + ')); Then navigate to /dashboard'
+    });
+  } catch (error) {
+    console.error('Bypass login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error creating bypass login',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router; 
