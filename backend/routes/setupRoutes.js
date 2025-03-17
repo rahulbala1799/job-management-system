@@ -758,4 +758,302 @@ router.get('/add-seed-data', async (req, res) => {
   }
 });
 
+// Add mock products endpoint
+router.get('/add-mock-products', async (req, res) => {
+  try {
+    const bcrypt = require('bcryptjs');
+    const jwt = require('jsonwebtoken');
+    
+    console.log('Starting mock products import...');
+    
+    // Sample product data
+    const packagingProducts = [
+      {
+        name: 'Standard Business Card Box',
+        description: 'Box of 500 standard business cards, 85x55mm',
+        category: 'packaging',
+        material: 'Cardstock',
+        unit_price: 45.99,
+        unit_type: 'boxed',
+        units_per_box: 500,
+        box_cost: 45.99
+      },
+      {
+        name: 'Premium Card Box',
+        description: 'Box of 250 premium business cards, 85x55mm',
+        category: 'packaging',
+        material: 'Luxury Cardstock',
+        unit_price: 65.99,
+        unit_type: 'boxed',
+        units_per_box: 250,
+        box_cost: 65.99
+      },
+      {
+        name: 'Custom Product Box',
+        description: 'Customizable product packaging box',
+        category: 'packaging',
+        material: 'Cardboard',
+        unit_price: 2.50,
+        unit_type: 'units',
+      },
+      {
+        name: 'Luxury Gift Box',
+        description: 'Premium gift boxes with magnetic closure',
+        category: 'packaging',
+        material: 'Rigid cardboard with soft-touch lamination',
+        unit_price: 7.95,
+        unit_type: 'units',
+      },
+      {
+        name: 'Shipping Mailer Box',
+        description: 'Corrugated mailer boxes for e-commerce',
+        category: 'packaging',
+        material: 'Corrugated cardboard',
+        unit_price: 1.75,
+        unit_type: 'units',
+      }
+    ];
+
+    const wideFormatProducts = [
+      {
+        name: 'Vinyl Banner',
+        description: 'Durable outdoor vinyl banner',
+        category: 'wide_format',
+        material: 'Heavy-duty vinyl',
+        width_m: 1.5,
+        length_m: 50,
+        roll_cost: 225,
+        cost_per_sqm: 3
+      },
+      {
+        name: 'Backlit Film',
+        description: 'Film for illuminated displays',
+        category: 'wide_format',
+        material: 'Translucent polyester film',
+        width_m: 1.2,
+        length_m: 30,
+        roll_cost: 216,
+        cost_per_sqm: 6
+      },
+      {
+        name: 'Canvas Print',
+        description: 'Fine art canvas for high-quality prints',
+        category: 'wide_format',
+        material: 'Poly-cotton canvas',
+        width_m: 1.1,
+        length_m: 20,
+        roll_cost: 275,
+        cost_per_sqm: 12.5
+      },
+      {
+        name: 'Window Graphics',
+        description: 'Perforated film for window advertising',
+        category: 'wide_format',
+        material: 'Perforated vinyl',
+        width_m: 1.37,
+        length_m: 25,
+        roll_cost: 205,
+        cost_per_sqm: 6
+      },
+      {
+        name: 'Floor Graphics',
+        description: 'Anti-slip floor advertising material',
+        category: 'wide_format',
+        material: 'Textured vinyl with anti-slip coating',
+        width_m: 1.3,
+        length_m: 15,
+        roll_cost: 195,
+        cost_per_sqm: 10
+      }
+    ];
+
+    const leafletsProducts = [
+      {
+        name: 'A5 Flyer - 170gsm',
+        description: 'Standard A5 full-color flyers',
+        category: 'leaflets',
+        material: 'Gloss paper',
+        thickness: '170gsm',
+        cost_per_unit: 0.18
+      },
+      {
+        name: 'A4 Brochure - Folded',
+        description: 'Tri-fold A4 brochures',
+        category: 'leaflets',
+        material: 'Silk paper',
+        thickness: '150gsm',
+        cost_per_unit: 0.42
+      },
+      {
+        name: 'DL Leaflet',
+        description: 'Standard DL size leaflets',
+        category: 'leaflets',
+        material: 'Uncoated paper',
+        thickness: '120gsm',
+        cost_per_unit: 0.12
+      },
+      {
+        name: 'Premium Booklet',
+        description: '8-page saddle-stitched booklet',
+        category: 'leaflets',
+        material: 'Silk paper',
+        thickness: '200gsm cover/130gsm inside',
+        cost_per_unit: 1.85
+      },
+      {
+        name: 'A6 Postcard',
+        description: 'Double-sided postcards',
+        category: 'leaflets',
+        material: 'Silk art paper',
+        thickness: '350gsm',
+        cost_per_unit: 0.25
+      }
+    ];
+
+    // Combined products array
+    const allProducts = [
+      ...packagingProducts,
+      ...wideFormatProducts,
+      ...leafletsProducts
+    ];
+    
+    // First check if category column exists in products table
+    try {
+      const [columns] = await db.query(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'products' 
+        AND COLUMN_NAME = 'category'
+      `);
+      
+      if (columns.length === 0) {
+        console.log('Adding category column to products table');
+        await db.query(`ALTER TABLE products ADD COLUMN category VARCHAR(100) DEFAULT 'general'`);
+      }
+    } catch (error) {
+      console.error('Error checking products.category column:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Database error while checking product schema',
+        error: error.message
+      });
+    }
+    
+    // Add any missing columns needed for our product types
+    const columnChecks = [
+      { name: 'unit_type', type: 'VARCHAR(50)' },
+      { name: 'units_per_box', type: 'INT' },
+      { name: 'box_cost', type: 'DECIMAL(10,2)' },
+      { name: 'width_m', type: 'DECIMAL(10,2)' },
+      { name: 'length_m', type: 'DECIMAL(10,2)' },
+      { name: 'roll_cost', type: 'DECIMAL(10,2)' },
+      { name: 'cost_per_sqm', type: 'DECIMAL(10,2)' },
+      { name: 'thickness', type: 'VARCHAR(100)' },
+      { name: 'cost_per_unit', type: 'DECIMAL(10,2)' }
+    ];
+    
+    for (const column of columnChecks) {
+      try {
+        const [colCheck] = await db.query(`
+          SELECT COLUMN_NAME 
+          FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'products' 
+          AND COLUMN_NAME = ?
+        `, [column.name]);
+        
+        if (colCheck.length === 0) {
+          console.log(`Adding ${column.name} column to products table`);
+          await db.query(`ALTER TABLE products ADD COLUMN ${column.name} ${column.type}`);
+        }
+      } catch (err) {
+        console.error(`Error adding column ${column.name}:`, err);
+      }
+    }
+    
+    // Insert products
+    let inserted = 0;
+    let skipped = 0;
+    const errors = [];
+    
+    for (const product of allProducts) {
+      try {
+        // Check if product with same name already exists
+        const [existing] = await db.query(
+          'SELECT * FROM products WHERE name = ?', 
+          [product.name]
+        );
+        
+        if (existing.length > 0) {
+          console.log(`Skipping existing product: ${product.name}`);
+          skipped++;
+          continue;
+        }
+        
+        // Prepare the columns and values dynamically based on product category
+        let columns = ['name', 'description', 'category', 'material', 'unit_price'];
+        let placeholders = ['?', '?', '?', '?', '?'];
+        let values = [product.name, product.description, product.category, product.material, product.unit_price];
+        
+        // Add category-specific fields
+        if (product.category === 'packaging') {
+          columns = [...columns, 'unit_type', 'units_per_box', 'box_cost'];
+          placeholders = [...placeholders, '?', '?', '?'];
+          values = [...values, product.unit_type, product.units_per_box || null, product.box_cost || null];
+        } 
+        else if (product.category === 'wide_format') {
+          columns = [...columns, 'width_m', 'length_m', 'roll_cost', 'cost_per_sqm'];
+          placeholders = [...placeholders, '?', '?', '?', '?'];
+          values = [...values, product.width_m, product.length_m, product.roll_cost, product.cost_per_sqm];
+        } 
+        else if (product.category === 'leaflets') {
+          columns = [...columns, 'thickness', 'cost_per_unit'];
+          placeholders = [...placeholders, '?', '?'];
+          values = [...values, product.thickness, product.cost_per_unit];
+        }
+        
+        // Build the query
+        const query = `
+          INSERT INTO products (${columns.join(', ')})
+          VALUES (${placeholders.join(', ')})
+        `;
+        
+        // Insert the product
+        const result = await db.query(query, values);
+        console.log(`Inserted product: ${product.name}`);
+        inserted++;
+      } catch (err) {
+        console.error(`Error inserting product ${product.name}:`, err);
+        errors.push({
+          product: product.name,
+          error: err.message
+        });
+      }
+    }
+    
+    // Return results
+    res.json({
+      success: true,
+      message: 'Database populated with mock products',
+      results: {
+        inserted,
+        skipped,
+        errors,
+        packaging: packagingProducts.length,
+        wideFormat: wideFormatProducts.length,
+        leaflets: leafletsProducts.length,
+        total: allProducts.length
+      }
+    });
+  } catch (error) {
+    console.error('Error adding mock products:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error adding mock products',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router; 
