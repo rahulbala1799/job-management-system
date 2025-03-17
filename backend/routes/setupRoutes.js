@@ -1056,4 +1056,447 @@ router.get('/add-mock-products', async (req, res) => {
   }
 });
 
+// Add a user-provided set of products
+router.post('/import-products', async (req, res) => {
+  try {
+    // Get the actual products from the request body
+    const { products } = req.body;
+
+    if (!products || !Array.isArray(products) || products.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No valid products data provided. Please send an array of products in the request body.'
+      });
+    }
+
+    console.log(`Received ${products.length} products to import`);
+
+    // First check if category column exists in products table
+    try {
+      const [columns] = await db.query(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'products' 
+        AND COLUMN_NAME = 'category'
+      `);
+      
+      if (columns.length === 0) {
+        console.log('Adding category column to products table');
+        await db.query(`ALTER TABLE products ADD COLUMN category VARCHAR(100) DEFAULT 'general'`);
+      }
+    } catch (error) {
+      console.error('Error checking products.category column:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Database error while checking product schema',
+        error: error.message
+      });
+    }
+    
+    // Add any missing columns dynamically based on the data
+    const sampleProduct = products[0];
+    const columnChecks = Object.keys(sampleProduct)
+      .filter(key => !['id', 'created_at', 'updated_at'].includes(key))
+      .map(key => {
+        let type = 'VARCHAR(255)';
+        if (typeof sampleProduct[key] === 'number') {
+          if (Number.isInteger(sampleProduct[key])) {
+            type = 'INT';
+          } else {
+            type = 'DECIMAL(10,2)';
+          }
+        } else if (typeof sampleProduct[key] === 'boolean') {
+          type = 'BOOLEAN';
+        }
+        return { name: key, type };
+      });
+
+    // Check and add any missing columns
+    for (const column of columnChecks) {
+      try {
+        const [colCheck] = await db.query(`
+          SELECT COLUMN_NAME 
+          FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'products' 
+          AND COLUMN_NAME = ?
+        `, [column.name]);
+        
+        if (colCheck.length === 0) {
+          console.log(`Adding ${column.name} column to products table with type ${column.type}`);
+          await db.query(`ALTER TABLE products ADD COLUMN ${column.name} ${column.type}`);
+        }
+      } catch (err) {
+        console.error(`Error adding column ${column.name}:`, err);
+      }
+    }
+    
+    // Insert products
+    let inserted = 0;
+    let skipped = 0;
+    let updated = 0;
+    const errors = [];
+    
+    for (const product of products) {
+      try {
+        // Check if product with same name already exists
+        const [existing] = await db.query(
+          'SELECT * FROM products WHERE name = ?', 
+          [product.name]
+        );
+        
+        if (existing.length > 0) {
+          // Product exists - update it
+          const existingProduct = existing[0];
+          const productId = existingProduct.id;
+          
+          // Remove id and timestamps from the product data
+          const productData = { ...product };
+          delete productData.id;
+          delete productData.created_at;
+          delete productData.updated_at;
+          
+          // Build update query
+          const columns = Object.keys(productData);
+          const values = Object.values(productData);
+          
+          // Generate SET part of the query
+          const setClause = columns.map(col => `${col} = ?`).join(', ');
+          
+          // Update query
+          const query = `
+            UPDATE products 
+            SET ${setClause}
+            WHERE id = ?
+          `;
+          
+          // Execute update
+          await db.query(query, [...values, productId]);
+          console.log(`Updated existing product: ${product.name}`);
+          updated++;
+        } else {
+          // Product doesn't exist - insert it
+          
+          // Prepare the columns and values dynamically
+          const productData = { ...product };
+          delete productData.id;  // Don't use the original ID
+          delete productData.created_at;
+          delete productData.updated_at;
+          
+          const columns = Object.keys(productData);
+          const placeholders = columns.map(() => '?');
+          const values = Object.values(productData);
+          
+          // Build the query
+          const query = `
+            INSERT INTO products (${columns.join(', ')})
+            VALUES (${placeholders.join(', ')})
+          `;
+          
+          // Insert the product
+          await db.query(query, values);
+          console.log(`Inserted new product: ${product.name}`);
+          inserted++;
+        }
+      } catch (err) {
+        console.error(`Error processing product ${product.name}:`, err);
+        errors.push({
+          product: product.name,
+          error: err.message
+        });
+      }
+    }
+    
+    // Return results
+    res.json({
+      success: true,
+      message: 'Actual products have been imported to the database',
+      results: {
+        inserted,
+        updated,
+        skipped,
+        errors,
+        total: products.length
+      }
+    });
+  } catch (error) {
+    console.error('Error importing products:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error importing products',
+      error: error.message
+    });
+  }
+});
+
+// Import products from local database
+router.get('/import-local-products', async (req, res) => {
+  try {
+    const mysql = require('mysql2/promise');
+    console.log('Starting import of products from local database...');
+
+    // Define local database configs to try
+    const localConfigs = [
+      {
+        // Default configuration - update these with your actual values
+        host: 'localhost',
+        user: 'root',
+        password: '',  // Update with your actual password if needed
+        database: 'job_management'
+      },
+      {
+        host: '127.0.0.1',
+        user: 'root',
+        password: '',
+        database: 'job_management'
+      },
+      {
+        host: 'localhost',
+        user: 'root',
+        password: '',
+        database: 'job_management_system'
+      }
+    ];
+
+    // Try each configuration until one works
+    let localConnection = null;
+    let localProducts = [];
+    let configUsed = null;
+
+    for (const config of localConfigs) {
+      try {
+        console.log(`Trying to connect to local database with config:`, {
+          host: config.host,
+          user: config.user,
+          database: config.database
+        });
+
+        localConnection = await mysql.createConnection(config);
+        await localConnection.execute('SELECT 1'); // Test connection
+        
+        // Connection successful, get products
+        console.log('Local database connection successful!');
+        console.log('Fetching products from local database...');
+        
+        const [products] = await localConnection.execute('SELECT * FROM products');
+        if (products && products.length > 0) {
+          console.log(`Found ${products.length} products in local database.`);
+          localProducts = products;
+          configUsed = config;
+          break; // Exit the loop if we found products
+        } else {
+          console.log('No products found in this database. Trying next configuration.');
+          await localConnection.end();
+          localConnection = null;
+        }
+      } catch (error) {
+        console.log(`Failed to connect with this configuration: ${error.message}`);
+        if (localConnection) {
+          try {
+            await localConnection.end();
+          } catch (e) {
+            console.error('Error closing connection:', e.message);
+          }
+          localConnection = null;
+        }
+      }
+    }
+
+    if (!localProducts.length) {
+      return res.status(404).json({
+        success: false,
+        message: 'Could not connect to local database or no products found.',
+        tried_configs: localConfigs.map(c => ({
+          host: c.host,
+          user: c.user,
+          database: c.database
+        }))
+      });
+    }
+
+    // Close local connection
+    if (localConnection) {
+      await localConnection.end();
+    }
+
+    // Process the products locally
+    console.log('Processing products for import...');
+    const processedProducts = localProducts.map(product => {
+      // Convert Buffer objects to strings if needed
+      const processed = {};
+      for (const [key, value] of Object.entries(product)) {
+        if (Buffer.isBuffer(value)) {
+          processed[key] = value.toString('utf8');
+        } else if (value instanceof Date) {
+          processed[key] = value.toISOString();
+        } else {
+          processed[key] = value;
+        }
+      }
+      return processed;
+    });
+
+    // Check and add missing columns to our products table in Railway database
+    console.log('Checking product table schema...');
+    
+    // Check if category column exists
+    try {
+      const [columns] = await db.query(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'products' 
+        AND COLUMN_NAME = 'category'
+      `);
+      
+      if (columns.length === 0) {
+        console.log('Adding category column to products table');
+        await db.query(`ALTER TABLE products ADD COLUMN category VARCHAR(100) DEFAULT 'general'`);
+      }
+    } catch (error) {
+      console.error('Error checking products.category column:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Database error while checking product schema',
+        error: error.message
+      });
+    }
+    
+    // Add any missing columns
+    if (processedProducts.length > 0) {
+      const sampleProduct = processedProducts[0];
+      const columnChecks = Object.keys(sampleProduct)
+        .filter(key => !['id', 'created_at', 'updated_at'].includes(key))
+        .map(key => {
+          let type = 'VARCHAR(255)';
+          const val = sampleProduct[key];
+          if (typeof val === 'number') {
+            if (Number.isInteger(val)) {
+              type = 'INT';
+            } else {
+              type = 'DECIMAL(10,2)';
+            }
+          } else if (typeof val === 'boolean') {
+            type = 'BOOLEAN';
+          }
+          return { name: key, type };
+        });
+
+      // Ensure all required columns exist
+      for (const column of columnChecks) {
+        try {
+          const [colCheck] = await db.query(`
+            SELECT COLUMN_NAME 
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = 'products' 
+            AND COLUMN_NAME = ?
+          `, [column.name]);
+          
+          if (colCheck.length === 0) {
+            console.log(`Adding column ${column.name} (${column.type}) to products table`);
+            await db.query(`ALTER TABLE products ADD COLUMN ${column.name} ${column.type}`);
+          }
+        } catch (err) {
+          console.error(`Error checking/adding column ${column.name}:`, err);
+        }
+      }
+    }
+    
+    // Import the products
+    console.log('Importing products to Railway database...');
+    let inserted = 0;
+    let updated = 0;
+    let errors = [];
+    
+    for (const product of processedProducts) {
+      try {
+        // Check if product already exists
+        const [existing] = await db.query('SELECT * FROM products WHERE name = ?', [product.name]);
+        
+        if (existing.length > 0) {
+          // Update existing product
+          const existingProduct = existing[0];
+          const productId = existingProduct.id;
+          
+          // Remove id and timestamps
+          const productData = { ...product };
+          delete productData.id;
+          delete productData.created_at;
+          delete productData.updated_at;
+          
+          // Build update query
+          const columns = Object.keys(productData);
+          const values = Object.values(productData);
+          
+          // Generate SET clause
+          const setClause = columns.map(col => `${col} = ?`).join(', ');
+          
+          // Execute update
+          await db.query(`
+            UPDATE products 
+            SET ${setClause}
+            WHERE id = ?
+          `, [...values, productId]);
+          
+          console.log(`Updated product: ${product.name}`);
+          updated++;
+        } else {
+          // Insert new product
+          const productData = { ...product };
+          delete productData.id;
+          delete productData.created_at;
+          delete productData.updated_at;
+          
+          const columns = Object.keys(productData);
+          const placeholders = columns.map(() => '?');
+          const values = Object.values(productData);
+          
+          await db.query(`
+            INSERT INTO products (${columns.join(', ')})
+            VALUES (${placeholders.join(', ')})
+          `, values);
+          
+          console.log(`Inserted product: ${product.name}`);
+          inserted++;
+        }
+      } catch (err) {
+        console.error(`Error processing product ${product.name}:`, err);
+        errors.push({
+          product: product.name,
+          error: err.message
+        });
+      }
+    }
+    
+    // Return success response
+    res.json({
+      success: true,
+      message: 'Local products imported successfully',
+      localDatabaseUsed: {
+        host: configUsed.host,
+        database: configUsed.database,
+        user: configUsed.user
+      },
+      results: {
+        total: processedProducts.length,
+        inserted,
+        updated,
+        errors: errors.length,
+        errorDetails: errors
+      },
+      sample: processedProducts.slice(0, 2) // First two products as sample
+    });
+  } catch (error) {
+    console.error('Error importing local products:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error importing products from local database',
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
+
 module.exports = router; 
