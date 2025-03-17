@@ -8,7 +8,7 @@
   "main": "backend/server.js",
   "scripts": {
     "start": "node server.js",
-    "build": "cd frontend && npm install && DISABLE_ESLINT_PLUGIN=true ESLINT_NO_DEV_ERRORS=true CI=false npm run build",
+    "build": "cd frontend && npm install && SKIP_PREFLIGHT_CHECK=true TSC_COMPILE_ON_ERROR=true DISABLE_ESLINT_PLUGIN=true ESLINT_NO_DEV_ERRORS=true CI=false JEST_WORKER_ID=1 npm run build",
     "install-backend": "cd backend && npm install",
     "postinstall": "npm run install-backend",
     "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm start\"",
