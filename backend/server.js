@@ -13,7 +13,7 @@ const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:3000';
 
 // Middleware
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' ? '*' : CLIENT_ORIGIN,
+  origin: '*', // Allow requests from any origin
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
