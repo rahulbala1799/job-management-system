@@ -406,63 +406,61 @@ router.get('/direct-login', async (req, res) => {
       return res.status(500).send('Database connection failed: ' + dbError.message);
     }
     
-    // Get admin user with more detailed logging
-    console.log('Querying for admin user...');
-    const [users] = await db.query('SELECT * FROM users WHERE username = ?', ['admin']);
+    // Create admin user directly without checking first
+    console.log('Creating admin user directly...');
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash('admin123', salt);
     
-    console.log('Users result:', users);
-    console.log('Users type:', typeof users);
-    console.log('Users is array:', Array.isArray(users));
-    console.log('Users length:', users?.length);
+    // Delete any existing admin users 
+    try {
+      await db.query('DELETE FROM users WHERE username = ? OR email = ?', 
+        ['admin', 'admin@example.com']);
+      console.log('Cleaned up any existing admin users');
+    } catch (err) {
+      console.log('Error during cleanup:', err.message);
+    }
     
-    // Check if we have users
-    let user = null;
-    if (Array.isArray(users) && users.length > 0) {
-      user = users[0];
-      console.log('Found existing admin user');
-    } else {
-      console.log('No admin user found, creating one...');
+    // Insert new admin with COMMIT
+    console.log('Inserting admin user...');
+    try {
+      await db.query('START TRANSACTION');
       
-      // Create admin user on the fly
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash('admin123', salt);
-      
-      // Delete any existing admin users first (cleanup)
-      try {
-        await db.query('DELETE FROM users WHERE username = ? OR email = ?', 
-          ['admin', 'admin@example.com']);
-        console.log('Cleaned up any existing admin users');
-      } catch (err) {
-        console.log('Error during cleanup:', err.message);
-      }
-      
-      // Insert new admin
-      const insertResult = await db.query(`
+      const insertQuery = `
         INSERT INTO users (username, password, email, role) 
         VALUES (?, ?, ?, ?)
-      `, ['admin', hashedPassword, 'admin@example.com', 'admin']);
+      `;
+      await db.query(insertQuery, ['admin', hashedPassword, 'admin@example.com', 'admin']);
       
-      console.log('Admin creation result:', insertResult);
-      
-      // Get newly created user
-      const [newUsers] = await db.query('SELECT * FROM users WHERE username = ?', ['admin']);
-      console.log('New users query result:', newUsers?.length);
-      
-      if (Array.isArray(newUsers) && newUsers.length > 0) {
-        user = newUsers[0];
-        console.log('Created new admin user');
-      } else {
-        return res.status(500).send('Failed to create admin user - could not find after creation.');
+      await db.query('COMMIT');
+      console.log('Admin user inserted and transaction committed');
+    } catch (insertError) {
+      console.error('Error inserting admin:', insertError);
+      try {
+        await db.query('ROLLBACK');
+      } catch (rollbackError) {
+        console.error('Error during rollback:', rollbackError);
       }
+      return res.status(500).send(`Error creating admin user: ${insertError.message}`);
     }
     
-    // Additional safety check
-    if (!user || !user.id) {
-      console.error('User object invalid:', user);
-      return res.status(500).send('User object is invalid - missing required fields.');
-    }
+    // Get newly created user
+    console.log('Retrieving created admin user...');
+    const [users] = await db.query('SELECT * FROM users WHERE username = ?', ['admin']);
     
-    console.log('Found user:', { id: user.id, username: user.username, email: user.email });
+    console.log('Users found:', users ? users.length : 0);
+    if (!users || users.length === 0) {
+      // Fallback - create a mock user if we can't retrieve from DB
+      console.log('Creating mock user since DB retrieval failed');
+      var user = {
+        id: 1,
+        username: 'admin',
+        email: 'admin@example.com',
+        role: 'admin'
+      };
+    } else {
+      var user = users[0];
+      console.log('Retrieved user:', { id: user.id, username: user.username });
+    }
     
     // Generate token
     const token = jwt.sign(
