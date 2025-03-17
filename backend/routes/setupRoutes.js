@@ -408,41 +408,58 @@ router.get('/direct-login', async (req, res) => {
     
     // Get admin user with more detailed logging
     console.log('Querying for admin user...');
-    const [result] = await db.query('SELECT * FROM users WHERE username = ?', ['admin']);
+    const [users] = await db.query('SELECT * FROM users WHERE username = ?', ['admin']);
     
-    console.log('Query result type:', typeof result);
-    console.log('Query result is array:', Array.isArray(result));
-    console.log('Query result length:', result ? result.length : 'N/A');
+    console.log('Users result:', users);
+    console.log('Users type:', typeof users);
+    console.log('Users is array:', Array.isArray(users));
+    console.log('Users length:', users?.length);
     
-    // Make sure result is an array as expected
-    if (!Array.isArray(result) || result.length === 0) {
+    // Check if we have users
+    let user = null;
+    if (Array.isArray(users) && users.length > 0) {
+      user = users[0];
+      console.log('Found existing admin user');
+    } else {
       console.log('No admin user found, creating one...');
       
       // Create admin user on the fly
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash('admin123', salt);
       
-      await db.query(`
+      // Delete any existing admin users first (cleanup)
+      try {
+        await db.query('DELETE FROM users WHERE username = ? OR email = ?', 
+          ['admin', 'admin@example.com']);
+        console.log('Cleaned up any existing admin users');
+      } catch (err) {
+        console.log('Error during cleanup:', err.message);
+      }
+      
+      // Insert new admin
+      const insertResult = await db.query(`
         INSERT INTO users (username, password, email, role) 
         VALUES (?, ?, ?, ?)
       `, ['admin', hashedPassword, 'admin@example.com', 'admin']);
       
+      console.log('Admin creation result:', insertResult);
+      
       // Get newly created user
       const [newUsers] = await db.query('SELECT * FROM users WHERE username = ?', ['admin']);
-      if (!Array.isArray(newUsers) || newUsers.length === 0) {
-        return res.status(500).send('Failed to create admin user. Please try running /api/setup/create-admin first.');
-      }
+      console.log('New users query result:', newUsers?.length);
       
-      console.log('Created new admin user');
-      var user = newUsers[0];
-    } else {
-      var user = result[0];
+      if (Array.isArray(newUsers) && newUsers.length > 0) {
+        user = newUsers[0];
+        console.log('Created new admin user');
+      } else {
+        return res.status(500).send('Failed to create admin user - could not find after creation.');
+      }
     }
     
     // Additional safety check
     if (!user || !user.id) {
       console.error('User object invalid:', user);
-      return res.status(500).send('User object is invalid. Try running /api/setup/create-admin first and check the logs.');
+      return res.status(500).send('User object is invalid - missing required fields.');
     }
     
     console.log('Found user:', { id: user.id, username: user.username, email: user.email });
