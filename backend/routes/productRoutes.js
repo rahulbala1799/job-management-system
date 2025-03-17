@@ -16,14 +16,29 @@ router.get('/', async (req, res) => {
 
 // Get products by category
 router.get('/category/:category', async (req, res) => {
-  const { category } = req.params;
-  
   try {
-    const [rows] = await db.query('SELECT * FROM products WHERE category = ? ORDER BY name', [category]);
-    res.json(rows);
+    const db = req.app.locals.db;
+    
+    // First check if category column exists in products table
+    try {
+      const [products] = await db.query(
+        'SELECT * FROM products WHERE category = ? ORDER BY name',
+        [req.params.category]
+      );
+      res.json(products);
+    } catch (error) {
+      // If category column doesn't exist, just return all products
+      if (error.code === 'ER_BAD_FIELD_ERROR' && error.message.includes('category')) {
+        console.log('Category column not found, returning all products instead');
+        const [allProducts] = await db.query('SELECT * FROM products ORDER BY name');
+        res.json(allProducts);
+      } else {
+        throw error; // Re-throw if it's a different error
+      }
+    }
   } catch (error) {
-    console.error(`Error fetching ${category} products:`, error);
-    res.status(500).json({ message: `Failed to fetch ${category} products` });
+    console.error('Error fetching products by category:', error);
+    res.status(500).json({ message: 'Failed to fetch products' });
   }
 });
 

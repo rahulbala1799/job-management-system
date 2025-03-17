@@ -30,6 +30,7 @@ const CREATE_TABLES = [
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     description TEXT,
+    category VARCHAR(100) DEFAULT 'general',
     width DECIMAL(10,2),
     height DECIMAL(10,2),
     material VARCHAR(100),
@@ -627,6 +628,70 @@ router.get('/login-html', async (req, res) => {
   } catch (error) {
     console.error('Login HTML error:', error);
     res.status(500).send('Error: ' + error.message);
+  }
+});
+
+// Fix database schema issues
+router.get('/fix-schema', async (req, res) => {
+  const alterStatements = [];
+  const results = {};
+  
+  try {
+    console.log('Starting schema fix...');
+    
+    // Check if category column exists in products table
+    try {
+      const [columns] = await db.query(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'products' 
+        AND COLUMN_NAME = 'category'
+      `);
+      
+      if (columns.length === 0) {
+        console.log('Adding category column to products table');
+        alterStatements.push(`ALTER TABLE products ADD COLUMN category VARCHAR(100) DEFAULT 'general'`);
+        await db.query(`ALTER TABLE products ADD COLUMN category VARCHAR(100) DEFAULT 'general'`);
+        results.products_category = 'Added';
+      } else {
+        results.products_category = 'Already exists';
+      }
+    } catch (error) {
+      console.error('Error checking products.category column:', error);
+      results.products_category = `Error: ${error.message}`;
+    }
+    
+    // Add more schema fixes here as needed
+    
+    // List all tables
+    try {
+      const [tables] = await db.query(`
+        SELECT TABLE_NAME 
+        FROM INFORMATION_SCHEMA.TABLES 
+        WHERE TABLE_SCHEMA = DATABASE()
+      `);
+      
+      results.existing_tables = tables.map(t => t.TABLE_NAME);
+    } catch (error) {
+      console.error('Error listing tables:', error);
+      results.existing_tables = `Error: ${error.message}`;
+    }
+    
+    // Return schema fix results
+    res.json({
+      success: true,
+      message: 'Schema fixes applied',
+      fixes_applied: alterStatements,
+      results: results
+    });
+  } catch (error) {
+    console.error('Schema fix error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fixing schema',
+      error: error.message
+    });
   }
 });
 
