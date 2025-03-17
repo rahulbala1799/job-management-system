@@ -1,16 +1,17 @@
 module.exports = {
+  env: {
+    browser: true,
+    es2021: true,
+    node: true,
+  },
   extends: [
-    'react-app',
-    'react-app/jest'
+    'eslint:recommended',
   ],
+  parserOptions: {
+    ecmaVersion: 'latest',
+    sourceType: 'module',
+  },
   rules: {
-    // Add any custom rules here
-    'no-console': ['warn', { 'allow': ['warn', 'error'] }],
-    'no-debugger': 'warn',
-    'no-alert': 'warn',
-    'no-var': 'error',
-    'prefer-const': 'error',
-    // Explicitly disable problematic rules
-    '@typescript-eslint/no-unused-expressions': 'off'
-  }
+    // Add your custom rules here
+  },
 }; 
