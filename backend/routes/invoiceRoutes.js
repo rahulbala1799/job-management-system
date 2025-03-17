@@ -7,9 +7,9 @@ const db = require('../db');
 router.get('/', async (req, res) => {
   try {
     const [invoices] = await db.query(`
-      SELECT i.*, c.name as customer_name, c.company as customer_company
+      SELECT i.*, c.name as customer_name, c.contact_person as customer_contact
       FROM invoices i
-      JOIN customers c ON i.customer_id = c.id
+      LEFT JOIN customers c ON i.customer_id = c.id
       ORDER BY i.created_at DESC
     `);
     res.json(invoices);
@@ -28,11 +28,11 @@ router.get('/:id', async (req, res) => {
     
     // Get invoice details
     const [invoices] = await connection.query(`
-      SELECT i.*, c.name as customer_name, c.company as customer_company, 
-             c.address as customer_address, c.city as customer_city, 
-             c.postal_code as customer_postal_code, c.country as customer_country
+      SELECT i.*, c.name as customer_name, c.contact_person, 
+             c.address as customer_address, c.email as customer_email, 
+             c.phone as customer_phone
       FROM invoices i
-      JOIN customers c ON i.customer_id = c.id
+      LEFT JOIN customers c ON i.customer_id = c.id
       WHERE i.id = ?
     `, [req.params.id]);
 

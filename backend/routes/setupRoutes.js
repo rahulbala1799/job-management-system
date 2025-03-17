@@ -695,4 +695,67 @@ router.get('/fix-schema', async (req, res) => {
   }
 });
 
+// Add seed data through API
+router.get('/add-seed-data', async (req, res) => {
+  try {
+    const results = {};
+    
+    // Add a sample product
+    try {
+      const [productCheck] = await db.query('SELECT * FROM products LIMIT 1');
+      if (productCheck.length === 0) {
+        // No products exist, create some examples
+        await db.query(`
+          INSERT INTO products (name, description, category, material, unit_price) 
+          VALUES 
+          ('Business Card', 'Standard business card', 'print', 'Paper', 59.99),
+          ('Brochure', 'Tri-fold marketing brochure', 'print', 'Glossy Paper', 125.50),
+          ('Vinyl Banner', 'Outdoor promotional banner', 'signage', 'Vinyl', 199.99),
+          ('Logo Design', 'Custom logo creation', 'design', 'Digital', 350.00),
+          ('T-Shirt', 'Custom printed t-shirt', 'apparel', 'Cotton', 25.99),
+          ('Packaging Box', 'Product packaging', 'packaging', 'Cardboard', 8.75)
+        `);
+        results.products = 'Added 6 sample products';
+      } else {
+        results.products = 'Products already exist, skipped';
+      }
+    } catch (err) {
+      console.error('Error adding products:', err);
+      results.products = `Error: ${err.message}`;
+    }
+    
+    // Add a sample customer
+    try {
+      const [customerCheck] = await db.query('SELECT * FROM customers LIMIT 1');
+      if (customerCheck.length === 0) {
+        await db.query(`
+          INSERT INTO customers (name, contact_person, email, phone, address) 
+          VALUES 
+          ('ABC Corporation', 'John Smith', 'john@abccorp.com', '555-123-4567', '123 Main St, Suite 100, New York, NY 10001'),
+          ('XYZ Company', 'Jane Doe', 'jane@xyzcompany.com', '555-987-6543', '456 Park Ave, Chicago, IL 60601')
+        `);
+        results.customers = 'Added 2 sample customers';
+      } else {
+        results.customers = 'Customers already exist, skipped';
+      }
+    } catch (err) {
+      console.error('Error adding customers:', err);
+      results.customers = `Error: ${err.message}`;
+    }
+    
+    res.json({
+      success: true,
+      message: 'Seed data added successfully',
+      results
+    });
+  } catch (error) {
+    console.error('Error adding seed data:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error adding seed data',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router; 
