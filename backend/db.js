@@ -130,7 +130,16 @@ const pool = mysql.createPool(config);
 async function query(sql, params) {
   try {
     console.log('Executing query:', sql.substring(0, 100), params ? 'with params' : 'without params');
+    if (params) {
+      console.log('Query parameters:', params);
+    }
     const [results] = await pool.execute(sql, params);
+    console.log('Query successful, results:', 
+      Array.isArray(results) 
+        ? `${results.length} rows returned` 
+        : typeof results === 'object' 
+          ? `Object with keys: ${Object.keys(results).join(', ')}` 
+          : results);
     return results;
   } catch (error) {
     console.error('Database query error:', error.message);

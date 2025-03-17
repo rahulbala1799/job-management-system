@@ -289,4 +289,104 @@ router.get('/bypass-login', async (req, res) => {
   }
 });
 
+// Combined endpoint - creates admin and generates token in one request
+router.get('/complete-setup', async (req, res) => {
+  try {
+    const bcrypt = require('bcryptjs');
+    const jwt = require('jsonwebtoken');
+    
+    console.log('Starting complete setup process...');
+    console.log('Database connection:', !!db);
+    
+    // Check database connection
+    try {
+      const [testResult] = await db.query('SELECT 1 as test');
+      console.log('Database connection test:', testResult);
+    } catch (dbError) {
+      console.error('Database connection error:', dbError);
+      return res.status(500).json({
+        success: false,
+        message: 'Database connection failed',
+        error: dbError.message
+      });
+    }
+    
+    // Step 1: Create admin user
+    console.log('Creating admin user...');
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash('admin123', salt);
+    
+    // Delete existing admin first
+    await db.query('DELETE FROM users WHERE username = ? OR email = ?', 
+      ['admin', 'admin@example.com']);
+    
+    // Insert new admin
+    const insertResult = await db.query(`
+      INSERT INTO users (username, password, email, role) 
+      VALUES (?, ?, ?, ?)
+    `, ['admin', hashedPassword, 'admin@example.com', 'admin']);
+    
+    console.log('Admin user created:', insertResult);
+    
+    // Step 2: Verify user was created
+    const [users] = await db.query(
+      'SELECT * FROM users WHERE username = ?', 
+      ['admin']
+    );
+    
+    console.log('Found users:', users.length);
+    const user = users[0];
+    
+    if (!user) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to create admin user - not found after creation'
+      });
+    }
+    
+    // Step 3: Generate token
+    const token = jwt.sign(
+      { userId: user.id, role: user.role },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '24h' }
+    );
+    
+    // Step 4: Return everything
+    res.json({
+      success: true,
+      message: 'Setup completed successfully',
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email, 
+        role: user.role
+      },
+      token,
+      login: {
+        email: 'admin@example.com',
+        password: 'admin123'
+      },
+      manual_login_steps: `
+        1. Open browser console
+        2. Run: localStorage.setItem("token", "${token}")
+        3. Run: localStorage.setItem("user", '${JSON.stringify({
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role
+        })}')
+        4. Navigate to: /dashboard
+      `
+    });
+  } catch (error) {
+    console.error('Complete setup error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error during complete setup process',
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
+
 module.exports = router; 
