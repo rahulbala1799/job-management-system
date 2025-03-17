@@ -208,4 +208,40 @@ router.get('/db-status', async (req, res) => {
   }
 });
 
+// Route to create a new admin user
+router.get('/create-admin', async (req, res) => {
+  try {
+    // Generate new admin with predictable password
+    const bcrypt = require('bcryptjs');
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash('admin123', salt);
+    
+    // Delete existing admin first (to avoid duplicates)
+    await db.query('DELETE FROM users WHERE username = ?', ['admin']);
+    
+    // Create fresh admin user
+    await db.query(`
+      INSERT INTO users (username, password, email, role) 
+      VALUES (?, ?, ?, ?)
+    `, ['admin', hashedPassword, 'admin@example.com', 'admin']);
+    
+    res.json({
+      success: true,
+      message: 'New admin user created successfully',
+      login: {
+        username: 'admin',
+        email: 'admin@example.com',
+        password: 'admin123'
+      }
+    });
+  } catch (error) {
+    console.error('Error creating admin user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error creating admin user',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router; 
