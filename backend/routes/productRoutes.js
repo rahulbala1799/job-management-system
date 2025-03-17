@@ -27,10 +27,10 @@ router.get('/category/:category', async (req, res) => {
         [category, category]
       );
       
-      console.log(`Found ${products.length} products in category ${category}`);
+      console.log(`Found ${products ? products.length : 0} products in category ${category}`);
       
       // Ensure we return an array even if no products found
-      if (!Array.isArray(products)) {
+      if (!products || !Array.isArray(products)) {
         console.log('Products result is not an array, returning empty array');
         return res.json([]);
       }
@@ -52,20 +52,34 @@ router.get('/category/:category', async (req, res) => {
         return product;
       });
       
-      res.json(enhancedProducts);
+      // One final check to ensure we're returning an array
+      if (!Array.isArray(enhancedProducts)) {
+        console.log('Enhanced products is not an array, returning empty array');
+        return res.json([]);
+      }
+      
+      return res.json(enhancedProducts);
     } catch (error) {
       // If category column doesn't exist, just return all products
       if (error.code === 'ER_BAD_FIELD_ERROR' && error.message.includes('category')) {
         console.log('Category column not found, returning all products instead');
         const [allProducts] = await db.query('SELECT * FROM products ORDER BY name');
-        res.json(allProducts);
+        
+        // Make sure we return an array even if query fails
+        if (!allProducts || !Array.isArray(allProducts)) {
+          console.log('All products result is not an array, returning empty array');
+          return res.json([]);
+        }
+        
+        return res.json(allProducts);
       } else {
         throw error; // Re-throw if it's a different error
       }
     }
   } catch (error) {
     console.error('Error fetching products by category:', error);
-    res.status(500).json({ message: 'Failed to fetch products' });
+    // Always return an empty array rather than an error response
+    return res.json([]);
   }
 });
 

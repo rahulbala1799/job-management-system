@@ -75,8 +75,16 @@ export const productApi = {
     try {
       console.log(`Requesting products for category: ${category}`);
       const response = await api.get<Product[]>(`/category/${category}`);
-      console.log(`Received ${response.data.length} products for category ${category}`, response.data);
-      return response.data;
+      const data = response.data;
+      
+      // Ensure we're always returning an array
+      if (!data || !Array.isArray(data)) {
+        console.warn(`Received non-array response for category ${category}:`, data);
+        return [];
+      }
+      
+      console.log(`Received ${data.length} products for category ${category}`, data);
+      return data;
     } catch (error) {
       console.error(`Error fetching products for category ${category}:`, error);
       // Return empty array on error rather than throwing

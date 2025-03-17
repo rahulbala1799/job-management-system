@@ -555,7 +555,10 @@ const ProductManagement: React.FC = () => {
     }
   };
 
-  const filteredProducts = products.filter(product => product.category === currentTab);
+  // Make sure products is always an array before filtering
+  const filteredProducts = Array.isArray(products) 
+    ? products.filter(product => product.category === currentTab)
+    : [];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
