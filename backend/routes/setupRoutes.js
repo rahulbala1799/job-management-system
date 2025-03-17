@@ -1775,14 +1775,27 @@ router.get('/fix-product-columns', async (req, res) => {
       { name: 'color', type: 'VARCHAR(50)' }
     ];
     
-    // First, check if the products table exists
+    // First, check if the products table exists using a safer approach
+    let productsTableExists = false;
+    
     try {
-      const [tables] = await db.query('SHOW TABLES');
-      const tableList = Array.isArray(tables) ? tables.map(t => Object.values(t)[0]) : [];
+      // Use information_schema to check if table exists
+      const [tableCheck] = await db.query(`
+        SELECT COUNT(*) as count 
+        FROM information_schema.tables 
+        WHERE table_schema = DATABASE() 
+        AND table_name = 'products'
+      `);
       
-      if (!tableList.includes('products')) {
-        // Create the products table with all columns
-        const columns = allProductColumns.map(col => `${col.name} ${col.type}`).join(', ');
+      productsTableExists = tableCheck[0].count > 0;
+      console.log('Products table exists:', productsTableExists);
+      
+      if (!productsTableExists) {
+        // Table doesn't exist, create it with all columns
+        const columns = allProductColumns
+          .filter(col => !col.skip_check || col.name === 'id') // Include id column
+          .map(col => `${col.name} ${col.type}`)
+          .join(', ');
         
         await db.query(`
           CREATE TABLE products (
@@ -1800,12 +1813,9 @@ router.get('/fix-product-columns', async (req, res) => {
         });
       }
     } catch (error) {
-      console.error('Error checking tables:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Error checking if products table exists',
-        error: error.message
-      });
+      // Log error but continue to column checks
+      console.error('Error checking if products table exists:', error);
+      // Don't return error, try to proceed with column fixes
     }
     
     // The products table exists, check for each column and add if missing
@@ -1827,14 +1837,18 @@ router.get('/fix-product-columns', async (req, res) => {
         if (!Array.isArray(colCheck) || colCheck.length === 0) {
           console.log(`Adding column ${column.name} (${column.type}) to products table`);
           
-          await db.query(`ALTER TABLE products ADD COLUMN ${column.name} ${column.type}`);
-          
-          columnResults[column.name] = 'Added';
+          try {
+            await db.query(`ALTER TABLE products ADD COLUMN ${column.name} ${column.type}`);
+            columnResults[column.name] = 'Added';
+          } catch (addError) {
+            console.error(`Error adding column ${column.name}:`, addError);
+            columnResults[column.name] = `Error: ${addError.message}`;
+          }
         } else {
           columnResults[column.name] = 'Already exists';
         }
       } catch (err) {
-        console.error(`Error checking/adding column ${column.name}:`, err);
+        console.error(`Error checking column ${column.name}:`, err);
         columnResults[column.name] = `Error: ${err.message}`;
       }
     }
