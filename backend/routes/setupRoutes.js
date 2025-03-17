@@ -1734,4 +1734,125 @@ router.get('/create-sample-products', async (req, res) => {
   }
 });
 
+// Fix all product columns to support all product types
+router.get('/fix-product-columns', async (req, res) => {
+  try {
+    console.log('Starting to fix product columns...');
+    
+    // Define all possible product columns
+    const allProductColumns = [
+      // Common columns
+      { name: 'id', type: 'INT AUTO_INCREMENT PRIMARY KEY', skip_check: true },
+      { name: 'name', type: 'VARCHAR(255) NOT NULL', skip_check: true },
+      { name: 'description', type: 'TEXT', skip_check: true },
+      { name: 'category', type: 'VARCHAR(100)' },
+      { name: 'price', type: 'DECIMAL(10,2)' },
+      { name: 'unit_price', type: 'DECIMAL(10,2)' },
+      { name: 'material', type: 'VARCHAR(100)' },
+      
+      // Dimensions
+      { name: 'width', type: 'DECIMAL(10,2)' },
+      { name: 'height', type: 'DECIMAL(10,2)' },
+      
+      // For wide format products
+      { name: 'width_m', type: 'DECIMAL(10,2)' },
+      { name: 'length_m', type: 'DECIMAL(10,2)' },
+      { name: 'roll_cost', type: 'DECIMAL(10,2)' },
+      { name: 'cost_per_sqm', type: 'DECIMAL(10,2)' },
+      
+      // For packaging products
+      { name: 'unit_type', type: 'VARCHAR(50)' },
+      { name: 'units_per_box', type: 'INT' },
+      { name: 'box_cost', type: 'DECIMAL(10,2)' },
+      
+      // For leaflets
+      { name: 'thickness', type: 'VARCHAR(100)' },
+      { name: 'cost_per_unit', type: 'DECIMAL(10,2)' },
+      
+      // Other common attributes
+      { name: 'quantity', type: 'INT' },
+      { name: 'image_url', type: 'VARCHAR(255)' },
+      { name: 'color', type: 'VARCHAR(50)' }
+    ];
+    
+    // First, check if the products table exists
+    try {
+      const [tables] = await db.query('SHOW TABLES');
+      const tableList = Array.isArray(tables) ? tables.map(t => Object.values(t)[0]) : [];
+      
+      if (!tableList.includes('products')) {
+        // Create the products table with all columns
+        const columns = allProductColumns.map(col => `${col.name} ${col.type}`).join(', ');
+        
+        await db.query(`
+          CREATE TABLE products (
+            ${columns},
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          )
+        `);
+        
+        console.log('Created products table with all required columns');
+        return res.json({
+          success: true,
+          message: 'Products table created with all required columns',
+          action: 'created_table'
+        });
+      }
+    } catch (error) {
+      console.error('Error checking tables:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Error checking if products table exists',
+        error: error.message
+      });
+    }
+    
+    // The products table exists, check for each column and add if missing
+    const columnResults = {};
+    
+    for (const column of allProductColumns) {
+      // Skip primary key and other essential columns that should already exist
+      if (column.skip_check) continue;
+      
+      try {
+        const [colCheck] = await db.query(`
+          SELECT COLUMN_NAME 
+          FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'products' 
+          AND COLUMN_NAME = ?
+        `, [column.name]);
+        
+        if (!Array.isArray(colCheck) || colCheck.length === 0) {
+          console.log(`Adding column ${column.name} (${column.type}) to products table`);
+          
+          await db.query(`ALTER TABLE products ADD COLUMN ${column.name} ${column.type}`);
+          
+          columnResults[column.name] = 'Added';
+        } else {
+          columnResults[column.name] = 'Already exists';
+        }
+      } catch (err) {
+        console.error(`Error checking/adding column ${column.name}:`, err);
+        columnResults[column.name] = `Error: ${err.message}`;
+      }
+    }
+    
+    // Return results
+    res.json({
+      success: true,
+      message: 'Product columns fixed successfully',
+      columns: columnResults
+    });
+  } catch (error) {
+    console.error('Error fixing product columns:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fixing product columns',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router; 
