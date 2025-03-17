@@ -72,8 +72,16 @@ export const productApi = {
 
   // Get products by category
   getProductsByCategory: async (category: Product['category']) => {
-    const response = await api.get<Product[]>(`/category/${category}`);
-    return response.data;
+    try {
+      console.log(`Requesting products for category: ${category}`);
+      const response = await api.get<Product[]>(`/category/${category}`);
+      console.log(`Received ${response.data.length} products for category ${category}`, response.data);
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching products for category ${category}:`, error);
+      // Return empty array on error rather than throwing
+      return [];
+    }
   },
 
   // Create a new product

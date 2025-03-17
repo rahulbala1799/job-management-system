@@ -17,15 +17,42 @@ router.get('/', async (req, res) => {
 // Get products by category
 router.get('/category/:category', async (req, res) => {
   try {
-    const db = req.app.locals.db;
+    const category = req.params.category;
+    console.log(`Fetching products for category: ${category}`);
     
     // First check if category column exists in products table
     try {
       const [products] = await db.query(
-        'SELECT * FROM products WHERE category = ? ORDER BY name',
-        [req.params.category]
+        'SELECT * FROM products WHERE category = ? OR ? = "all" ORDER BY name',
+        [category, category]
       );
-      res.json(products);
+      
+      console.log(`Found ${products.length} products in category ${category}`);
+      
+      // Ensure we return an array even if no products found
+      if (!Array.isArray(products)) {
+        console.log('Products result is not an array, returning empty array');
+        return res.json([]);
+      }
+      
+      // Add product-type specific handling here if needed
+      const enhancedProducts = products.map(product => {
+        // For packaging products, add default values if needed
+        if (category === 'packaging' && !product.unit_type) {
+          return {
+            ...product,
+            unit_type: 'units',
+            units_per_box: product.units_per_box || 0,
+            box_cost: product.box_cost || 0,
+            unit_cost: product.unit_price || 0
+          };
+        }
+        
+        // For other categories
+        return product;
+      });
+      
+      res.json(enhancedProducts);
     } catch (error) {
       // If category column doesn't exist, just return all products
       if (error.code === 'ER_BAD_FIELD_ERROR' && error.message.includes('category')) {

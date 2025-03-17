@@ -147,12 +147,26 @@ const ProductManagement: React.FC = () => {
   // Define loadProducts with useCallback
   const loadProducts = useCallback(async () => {
     try {
+      console.log(`Loading products for tab: ${currentTab}`);
       setLoading(true);
       const data = await productApi.getProductsByCategory(currentTab);
-      setProducts(data);
+      console.log(`Successfully loaded ${data?.length} products`);
+      
+      // Ensure we always have an array even if the API returns null/undefined
+      setProducts(data || []);
       setLoading(false);
+      
+      // If there are no products but loading completed successfully
+      if (data?.length === 0) {
+        console.log('No products found for this category');
+        enqueueSnackbar(`No products found in the ${currentTab} category. Create some!`, { 
+          variant: 'info',
+          preventDuplicate: true
+        });
+      }
     } catch (error) {
       console.error('Error loading products:', error);
+      setProducts([]); // Set empty array on error
       enqueueSnackbar('Failed to load products', { variant: 'error' });
       setLoading(false);
     }
